@@ -174,9 +174,9 @@ impl<
     ///
     fn finish_atomic(&self) -> Result<()> {
         // initialize the logger
-        FmtSubscriber::builder().with_env_filter("trace").init();
+        // FmtSubscriber::builder().with_env_filter("trace").init();
         // Instantiate the kafka queue
-        let mut kafka_queue = KafkaQueue { messages: Vec::new() };
+        // let mut kafka_queue = KafkaQueue { messages: Vec::new() };
         // Retrieve the atomic batch belonging to the map.
         let operations = core::mem::take(&mut *self.atomic_batch.lock());
         if !operations.is_empty() {
@@ -192,30 +192,41 @@ impl<
                 .collect::<Result<Vec<_>>>()?;
             // Enqueue all the operations from the map in the database-wide batch.
             let mut atomic_batch = self.database.atomic_batch.lock();
-            trace!("Is atomic_batch empty? {}", atomic_batch.is_empty());
+            // trace!("Is atomic_batch empty? {}", atomic_batch.is_empty());
             for (raw_key, raw_value) in prepared_operations {
-                trace!("raw_key: {:?}", raw_key);
-                trace!("raw_value: {:?}", raw_value);
-                trace!("Database raw key (hex): {}", hex::encode(&raw_key));
-                if let Some(rv) = &raw_value {
-                    trace!("Database raw value (hex): {}", hex::encode(rv));
-                }
+                // trace!("raw_key: {:?}", raw_key);
+                // println!("raw_key: {:?}", raw_key);
+                // trace!("raw_value: {:?}", raw_value);
+                // println!("raw_value: {:?}", raw_value);
+                // trace!("Database raw key (hex): {}", hex::encode(&raw_key));
+                // println!("Database raw key (hex): {}", hex::encode(&raw_key));
+                // if let Some(rv) = &raw_value {
+                //     trace!("Database raw value (hex): {}", hex::encode(rv));
+                //     println!("Database raw value (hex): {}", hex::encode(rv));
+                // }
 
                 match raw_value {
                     Some(raw_value) => {
                         atomic_batch.put(raw_key.clone(), raw_value.clone());
-                        kafka_queue.put(raw_key.clone(), raw_value.clone());
-                        trace!(
-                            "Adding to atomic batch: key = {}, value = {}",
-                            hex::encode(&raw_key),
-                            hex::encode(&raw_value)
-                        );
-                        trace!("kafka_queue after put: {:?}", kafka_queue);
+                        // kafka_queue.put(raw_key.clone(), raw_value.clone());
+                        // trace!(
+                        //     "Adding to atomic batch: key = {}, value = {}",
+                        //     hex::encode(&raw_key),
+                        //     hex::encode(&raw_value)
+                        // );
+                        // println!(
+                        //     "Adding to atomic batch: key = {}, value = {}",
+                        //     hex::encode(&raw_key),
+                        //     hex::encode(&raw_value)
+                        // );
+                        // trace!("kafka_queue after put: {:?}", kafka_queue);
+                        // println!("kafka_queue after put: {:?}", kafka_queue);
                     }
                     None => {
                         atomic_batch.delete(raw_key.clone());
-                        kafka_queue.put(raw_key, Vec::new());
-                        trace!("kafka_queue after delete: {:?}", kafka_queue);
+                        // kafka_queue.put(raw_key, Vec::new());
+                        // trace!("kafka_queue after delete: {:?}", kafka_queue);
+                        // println!("kafka_queue after delete: {:?}", kafka_queue);
                     }
                 }
             }
@@ -240,7 +251,7 @@ impl<
             // Execute all the operations atomically.
             self.database.rocksdb.write(batch)?;
             // Send all the messages from the kafka queue to kafka
-            kafka_queue.send_messages(&*KAFKA_PRODUCER, "node-data");
+            // kafka_queue.send_messages(&*KAFKA_PRODUCER, "node-data");
             // Ensure that the database atomic batch is empty.
             assert!(self.database.atomic_batch.lock().is_empty());
         }
@@ -352,14 +363,23 @@ impl<
     /// Returns an iterator over each key in the map.
     ///
     fn keys_confirmed(&'a self) -> Self::Keys {
-        Keys::new(self.database.prefix_iterator(&self.context))
+        let keys = Keys::new(self.database.prefix_iterator(&self.context));
+        // Send the deserialized keys to Kafka
+        let topic = "node-data";
+        KAFKA_PRODUCER.emit_event(&keys.to_string(), topic); // or maybe not to string idk    
+        println!("keys confirmed kafka data stuff: {}, {}", keys.to_string(), topic);
+        keys
     }
 
     ///
     /// Returns an iterator over each value in the map.
     ///
     fn values_confirmed(&'a self) -> Self::Values {
-        Values::new(self.database.prefix_iterator(&self.context))
+        let values = Values::new(self.database.prefix_iterator(&self.context));
+        let topic = "node-data";
+        KAFKA_PRODUCER.emit_event(&values.to_string(), topic); // or maybe not to string idk    
+        println!("values confirmed kafka data stuff: {}, {}", values.to_string(), topic);
+        values
     }
 }
 
