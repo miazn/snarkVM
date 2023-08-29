@@ -366,10 +366,16 @@ impl<
         let keys = Keys::new(self.database.prefix_iterator(&self.context));
         // Send the deserialized keys to Kafka
         let topic = "node-data";
-        KAFKA_PRODUCER.emit_event(&keys.to_string(), topic); // or maybe not to string idk    
-        println!("keys confirmed kafka data stuff: {}, {}", keys.to_string(), topic);
+        // KAFKA_PRODUCER.emit_event(&keys.to_string(), topic); // or maybe not to string idk    
+        // println!("keys confirmed kafka data stuff: {}, {}", keys.to_string(), topic);
+        for key in &keys.iter() {
+            KAFKA_PRODUCER.emit_event(&key, topic); 
+            println!("keys confirmed kafka data stuff: {}, {}", key, topic);
+        }
         keys
     }
+    // we won't know what mapping is being called so we would have to add that to the trait or extend the trait, create a super trait or smth
+    // don't call it at that level, if we have to call this method anyway we're gonna get the iterator out. do it one level up. do the kafka stuff one level up when we actually get the values confirmed
 
     ///
     /// Returns an iterator over each value in the map.
@@ -377,8 +383,13 @@ impl<
     fn values_confirmed(&'a self) -> Self::Values {
         let values = Values::new(self.database.prefix_iterator(&self.context));
         let topic = "node-data";
-        KAFKA_PRODUCER.emit_event(&values.to_string(), topic); // or maybe not to string idk    
-        println!("values confirmed kafka data stuff: {}, {}", values.to_string(), topic);
+        // KAFKA_PRODUCER.emit_event(&values.to_string(), topic); // or maybe not to string idk    
+        // println!("values confirmed kafka data stuff: {}, {}", values.to_string(), topic);
+        for value in &values.iter() {
+            KAFKA_PRODUCER.emit_event(&value, topic); 
+            println!("values confirmed kafka data stuff: {}, {}", value, topic);
+        }
+        
         values
     }
 }
