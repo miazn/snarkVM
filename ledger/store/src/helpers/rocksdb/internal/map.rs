@@ -368,9 +368,10 @@ impl<
         let topic = "node-data";
         // KAFKA_PRODUCER.emit_event(&keys.to_string(), topic); // or maybe not to string idk    
         // println!("keys confirmed kafka data stuff: {}, {}", keys.to_string(), topic);
-        for key in &keys.iter() {
-            KAFKA_PRODUCER.emit_event(&key, topic); 
-            println!("keys confirmed kafka data stuff: {}, {}", key, topic);
+        for key in &keys {
+            let value_key = key.to_string();
+            KAFKA_PRODUCER.emit_event(&value_key, topic); 
+            println!("keys confirmed kafka data stuff: {}, {}", value_key, topic);
         }
         keys
     }
@@ -380,18 +381,18 @@ impl<
     ///
     /// Returns an iterator over each value in the map.
     ///
+
     fn values_confirmed(&'a self) -> Self::Values {
         let values = Values::new(self.database.prefix_iterator(&self.context));
         let topic = "node-data";
-        // KAFKA_PRODUCER.emit_event(&values.to_string(), topic); // or maybe not to string idk    
-        // println!("values confirmed kafka data stuff: {}, {}", values.to_string(), topic);
-        for value in &values.iter() {
-            KAFKA_PRODUCER.emit_event(&value, topic); 
-            println!("values confirmed kafka data stuff: {}, {}", value, topic);
+        for value in &values {
+            let value_str = value.to_string();  // Assuming each value can be converted to a string
+            KAFKA_PRODUCER.emit_event(&value_str, topic);
+            println!("values confirmed kafka data stuff: {}, {}", value_str, topic);
         }
-        
         values
     }
+    
 }
 
 impl<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned> DataMap<K, V> {
