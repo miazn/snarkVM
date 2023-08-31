@@ -301,6 +301,15 @@ impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
             None => self.get_epoch_challenge(self.latest_height()),
         }
     }
+    
+    pub fn collect_metrics(&self) { 
+        let iter = self.vm.block_store().transaction_store().deployment_store().verifying_keys();
+        // verifying_keys returns iter_confirmed which returns each kv pair in the map
+        for item in iter {
+            println!("Collected metric: {:?}", item);
+            // send to kafka 
+        }
+    }
 }
 
 impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
