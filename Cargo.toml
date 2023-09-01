@@ -226,6 +226,9 @@ optional = true
 [dependencies.rayon]
 version = "1"
 
+[dependencies.rdkafka]
+version = "0.33.2"
+
 [dependencies.self_update]
 version = "0.37"
 optional = true

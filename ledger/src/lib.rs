@@ -22,6 +22,7 @@ pub use ledger_block as block;
 pub use ledger_coinbase as coinbase;
 pub use ledger_query as query;
 pub use ledger_store as store;
+use store::helpers::kafka::KafkaProducer;
 
 pub use crate::block::*;
 
@@ -59,6 +60,7 @@ use ledger_block::{Block, ConfirmedTransaction, Header, Metadata, Ratify, Transa
 use ledger_coinbase::{CoinbasePuzzle, CoinbaseSolution, EpochChallenge, ProverSolution, PuzzleCommitment};
 use ledger_query::Query;
 use ledger_store::{ConsensusStorage, ConsensusStore};
+use ledger_store::helpers::kafka::config;
 use synthesizer::{
     program::{FinalizeGlobalState, Program},
     vm::VM,
@@ -197,6 +199,19 @@ impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
     /// TODO: Delete this after testing for snarkOS team.
     pub fn insert_committee_member(&self, address: Address<N>) {
         self.current_committee.write().insert(address);
+    }
+
+    // enqueue verifying keys to kafka queue
+    // once the queue gets long enough, it will automatically send
+    pub fn enqueue_verifying_keys(&self, producer: &mut KafkaProducer) { 
+        let iter = self.vm.block_store().transaction_store().deployment_store().verifying_keys();
+        // verifying_keys returns iter_confirmed which returns each kv pair in the map
+        for item in iter {
+            let formatted_string = format!("Collected metric: {:?}", item);
+            println!("Collected metric: {:?}", item);
+            producer.enqueue("verifying_key_map".to_string(), formatted_string, "test".to_string());
+            // send to kafka 
+        }
     }
 
     /// Returns the VM.
