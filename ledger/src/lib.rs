@@ -204,8 +204,12 @@ impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
     // enqueue verifying keys to kafka queue
     // once the queue gets long enough, it will automatically send
     pub fn enqueue_verifying_keys(&self, producer: &mut KafkaProducer) { 
+        // test to see if this function is being called continuously
+        println!("TESTING enqueue loop");
+        producer.enqueue("TEST".to_string(), "test-enqueue function loop".to_string(), "test-loop".to_string());
         let iter = self.vm.block_store().transaction_store().deployment_store().verifying_keys();
         // verifying_keys returns iter_confirmed which returns each kv pair in the map
+        
         for item in iter {
             let formatted_string = format!("Collected metric: {:?}", item);
             println!("Collected metric: {:?}", item);
