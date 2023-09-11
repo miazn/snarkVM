@@ -211,7 +211,7 @@ impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
         // verifying_keys returns iter_confirmed which returns each kv pair in the map
         
         for item in iter {
-            let formatted_string = format!("Collected metric: {:?}", item);
+            let formatted_string = format!("verifying-key-metric: {:?}", item);
             println!("Collected metric: {:?}", item);
             producer.enqueue("verifying_key_map".to_string(), formatted_string, "test".to_string());
             // send to kafka 
