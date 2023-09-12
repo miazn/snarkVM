@@ -17,6 +17,8 @@
 
 #[macro_use]
 extern crate tracing;
+extern crate serde;
+extern crate serde_json;
 
 pub use ledger_block as block;
 pub use ledger_coinbase as coinbase;
@@ -43,24 +45,15 @@ use console::{
     account::{Address, GraphKey, PrivateKey, Signature, ViewKey},
     network::prelude::*,
     program::{
-        Ciphertext,
-        Entry,
-        Identifier,
-        Literal,
-        Plaintext,
-        ProgramID,
-        Record,
-        StatePath,
-        Value,
-        RATIFICATIONS_DEPTH,
+        Ciphertext, Entry, Identifier, Literal, Plaintext, ProgramID, Record, StatePath, Value, RATIFICATIONS_DEPTH,
     },
     types::{Field, Group},
 };
 use ledger_block::{Block, ConfirmedTransaction, Header, Metadata, Ratify, Transaction, Transactions};
 use ledger_coinbase::{CoinbasePuzzle, CoinbaseSolution, EpochChallenge, ProverSolution, PuzzleCommitment};
 use ledger_query::Query;
-use ledger_store::{ConsensusStorage, ConsensusStore};
 use ledger_store::helpers::kafka::config;
+use ledger_store::{ConsensusStorage, ConsensusStore};
 use synthesizer::{
     program::{FinalizeGlobalState, Program},
     vm::VM,
@@ -203,18 +196,47 @@ impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
 
     // enqueue verifying keys to kafka queue
     // once the queue gets long enough, it will automatically send
-    pub fn enqueue_verifying_keys(&self, producer: &mut KafkaProducer) { 
+    pub fn enqueue_verifying_keys(&self, producer: &mut KafkaProducer) {
         // test to see if this function is being called continuously
         println!("TESTING enqueue loop");
         producer.enqueue("TEST".to_string(), "test-enqueue function loop".to_string(), "test-loop".to_string());
         let iter = self.vm.block_store().transaction_store().deployment_store().verifying_keys();
         // verifying_keys returns iter_confirmed which returns each kv pair in the map
-        
+
         for item in iter {
-            let formatted_string = format!("verifying-key-metric: {:?}", item);
+            //let formatted_string = format!("verifying-key-metric: {:?}", item);
+            let formatted_string = format!(r#"{{"verifying-key-metric": "{:?}"}}"#, item);
             println!("Collected metric: {:?}", item);
             producer.enqueue("verifying_key_map".to_string(), formatted_string, "test".to_string());
-            // send to kafka 
+            // send to kafka
+        }
+    }
+
+    // enqueue verifying keys to kafka queue
+    // once the queue gets long enough, it will automatically send
+    pub fn enqueue_program_mapping_names(&self, producer: &mut KafkaProducer, name: &str) {
+        // test to see if this function is being called continuously
+        println!("TESTING enqueue loop");
+        producer.enqueue("TEST".to_string(), "test-enqueue function loop for mappings".to_string(), "test-loop".to_string());
+        
+        let id = ProgramID::from_str(name).unwrap();
+        let result = self.vm.finalize_store().get_mapping_names_confirmed(&id);
+
+        match result {
+            Ok(Some(mapping_names_set)) => {
+                for mapping_name in &mapping_names_set {
+                    // Here, mapping_name is of type Identifier<N>
+                    let formatted_string = format!(r#"{{"mapping-names": "{:?}"}}"#, mapping_name);
+                    println!("{:?}", mapping_name);
+                    producer.enqueue("mapping_names".to_string(), formatted_string, "test-map".to_string());
+                }
+            }
+            Ok(None) => {
+                println!("No mapping names found for the provided program_id.");
+            }
+            Err(e) => {
+                eprintln!("Error retrieving the mapping names: {}", e);
+            }
         }
     }
 
