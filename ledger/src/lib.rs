@@ -17,8 +17,6 @@
 
 #[macro_use]
 extern crate tracing;
-extern crate serde;
-extern crate serde_json;
 
 pub use ledger_block as block;
 pub use ledger_coinbase as coinbase;
