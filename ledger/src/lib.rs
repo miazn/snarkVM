@@ -195,13 +195,38 @@ impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
         Ok(ledger)
     }
 
+
+    pub fn enqueue_block_kafka(&self, producer: &mut KafkaProducer, block: &Block<N>) {
+        // get iterator over all transactions in the block hash
+        let transactions = self.vm.block_store().get_block_transactions(&block.hash()).unwrap();
+        let unwrapped_transactions = transactions.unwrap();
+        let transactions_iter = unwrapped_transactions.transaction_ids();
+        
+        // key = block height/number and value = the transactions list
+        let formatted_string = format!(r#"{{"{:?}": "{:?}"}}"#, block.height(), unwrapped_transactions);
+        producer.enqueue("block-to-transactions".to_string(), formatted_string, "block-transactions".to_string());
+        let execution_store = self.vm.transaction_store();
+        let transition_store = self.vm.transition_store();
+        for tx in transactions_iter {
+            let transitions = execution_store.get_transaction(tx).unwrap();
+            let unwrapped_transitions = transitions.unwrap();
+            let transitions_iter = unwrapped_transitions.transition_ids();
+            let formatted_string = format!(r#"{{"{:?}": "{:?}"}}"#, tx, unwrapped_transitions);
+            producer.enqueue("transaction-to-transitions".to_string(), formatted_string, "transaction-transitions".to_string());
+            for transition in transitions_iter {
+                let transition_obj = transition_store.get_transition(transition);
+                println!("{:?}", transition_obj)
+            }
+        }
+    }
+
     // enqueue verifying keys to kafka queue
     // once the queue gets long enough, it will automatically send
     pub fn enqueue_verifying_keys(&self, producer: &mut KafkaProducer) {
         // test to see if this function is being called continuously
         println!("TESTING enqueue loop");
         producer.enqueue("TEST".to_string(), "test-enqueue function loop".to_string(), "test-loop".to_string());
-        let iter = self.vm.block_store().transaction_store().deployment_store().verifying_keys();
+        let iter = self.vm.block_store().transaction_store().verifying_keys();
         // verifying_keys returns iter_confirmed which returns each kv pair in the map
 
         for item in iter {
