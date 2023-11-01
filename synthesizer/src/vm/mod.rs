@@ -338,7 +338,6 @@ impl<N: Network, C: ConsensusStorage<N>> VM<N, C> {
                 producer.enqueue("mapping_data".to_string(), message, "test".to_string());
             },
             FinalizeOperation::RemoveMapping(mapping_id) => {
-                message = format!("RemoveMapping: {:?}", mapping_id);
                 message = format!(r#"{{"ReplaceMapping": "{:?}"}}"#, mapping_id);
                 producer.enqueue("mapping_data".to_string(), message, "test".to_string());
             },
