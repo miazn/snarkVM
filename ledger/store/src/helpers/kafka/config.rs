@@ -15,7 +15,7 @@
 use lazy_static::lazy_static;
 use std::sync::{Arc, Mutex};
 use rdkafka::{
-    producer::{BaseProducer, BaseRecord},
+    producer::{BaseProducer, BaseRecord, Producer},
     ClientConfig,
 };
 use std::{thread, time::Duration};
@@ -46,16 +46,36 @@ impl KafkaProducer {
             kp
     }
 
+    // original kafka background emitter function
+
+    //pub fn start_background_emitter(&self) {
+    //    let producer = Arc::new(self.producer.clone());
+    //    let queue = Arc::clone(&self.queue);
+
+    //    thread::spawn(move || {
+    //        loop {
+    //            {
+    //                let queue_guard = queue.lock().unwrap();
+
+    //                if queue_guard.len() >= MAX_QUEUE_SIZE {
+    //                    drop(queue_guard); // Drop the lock before calling emit_queue
+    //                    Self::emit_queue_for_thread(&producer, &queue);
+    //                }
+    //            }
+    //            thread::sleep(Duration::from_secs(10));
+    //        }
+    //    });
+    //}
+
     pub fn start_background_emitter(&self) {
         let producer = Arc::new(self.producer.clone());
         let queue = Arc::clone(&self.queue);
-
+    
         thread::spawn(move || {
             loop {
                 {
                     let queue_guard = queue.lock().unwrap();
-
-                    if queue_guard.len() >= MAX_QUEUE_SIZE {
+                    if queue_guard.len() >= MAX_QUEUE_SIZE || !queue_guard.is_empty() {
                         drop(queue_guard); // Drop the lock before calling emit_queue
                         Self::emit_queue_for_thread(&producer, &queue);
                     }
@@ -64,6 +84,7 @@ impl KafkaProducer {
             }
         });
     }
+    
 
     // Enqueue a message to the internal buffer
     //pub fn enqueue(&mut self, key: String, value: String, topic: String) {
@@ -91,6 +112,8 @@ impl KafkaProducer {
                 .send(BaseRecord::to(&topic).key(&key).payload(&value))
                 .expect("failed to send message");
         }
+
+        let _ = producer.flush(Duration::from_secs(10));  // Adjust the timeout as necessary
     }
 
 
