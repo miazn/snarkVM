@@ -55,12 +55,14 @@ use ledger_store::{
     TransactionStore,
     TransitionStore,
 };
+use ledger_store::helpers::kafka::KafkaProducer;
 use synthesizer_process::{Authorization, Process, Trace};
 use synthesizer_program::{FinalizeGlobalState, FinalizeOperation, FinalizeStoreTrait, Program};
 
 use aleo_std::prelude::{finish, lap, timer};
 use indexmap::IndexMap;
 use parking_lot::RwLock;
+use parking_lot::Mutex;
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -69,6 +71,8 @@ pub struct VM<N: Network, C: ConsensusStorage<N>> {
     process: Arc<RwLock<Process<N>>>,
     /// The VM store.
     store: ConsensusStore<N, C>,
+    /// The Kafka Producer
+    kafka: Arc<Mutex<KafkaProducer>>,
 }
 
 impl<N: Network, C: ConsensusStorage<N>> VM<N, C> {
@@ -142,7 +146,7 @@ impl<N: Network, C: ConsensusStorage<N>> VM<N, C> {
         }
 
         // Return the new VM.
-        Ok(Self { process: Arc::new(RwLock::new(process)), store })
+        Ok(Self { process: Arc::new(RwLock::new(process)), store, kafka: Arc::new(Mutex::new(KafkaProducer::new())) })
     }
 
     /// Returns `true` if a program with the given program ID exists.
@@ -291,7 +295,13 @@ impl<N: Network, C: ConsensusStorage<N>> VM<N, C> {
         self.block_store().insert(block)?;
         // Next, finalize the transactions.
         match self.finalize(state, block.ratifications(), block.solutions(), block.transactions()) {
-            Ok(_ratified_finalize_operations) => Ok(()),
+            Ok(ratified_finalize_operations) => {
+                // Here, you can send each ratified_finalize_operation to Kafka
+                for operation in ratified_finalize_operations {
+                    self.send_mappings_to_kafka(operation);
+                }
+                Ok(())
+            },
             Err(error) => {
                 // Rollback the block.
                 self.block_store().remove_last_n(1)?;
@@ -300,7 +310,42 @@ impl<N: Network, C: ConsensusStorage<N>> VM<N, C> {
             }
         }
     }
+
+    fn send_mappings_to_kafka(&self, operation: FinalizeOperation<N>) {
+        let producer =  &mut self.kafka.lock();
+        let message;  
+
+        match operation {
+            FinalizeOperation::InitializeMapping(mapping_id) => {
+                message = format!("InitializeMapping: {:?}", mapping_id);
+                producer.enqueue("mapping_data".to_string(), message, "test".to_string());
+            },
+            FinalizeOperation::InsertKeyValue(mapping_id, key_id, value_id) => {
+                message = format!("InsertKeyValue: {:?}, {:?}, {:?}", mapping_id, key_id, value_id);
+                producer.enqueue("mapping_data".to_string(), message, "test".to_string());
+            },
+            FinalizeOperation::UpdateKeyValue(mapping_id, index, key_id, value_id) => {
+                message = format!("UpdateKeyValue: {:?}, {}, {:?}, {:?}", mapping_id, index, key_id, value_id);
+                producer.enqueue("mapping_data".to_string(), message, "test".to_string());
+            },
+            FinalizeOperation::RemoveKeyValue(mapping_id, index) => {
+                message = format!("RemoveKeyValue: {:?}, {}", mapping_id, index);
+                producer.enqueue("mapping_data".to_string(), message, "test".to_string());
+            },
+            FinalizeOperation::ReplaceMapping(mapping_id) => {
+                message = format!("ReplaceMapping: {:?}", mapping_id);
+                producer.enqueue("mapping_data".to_string(), message, "test".to_string());
+            },
+            FinalizeOperation::RemoveMapping(mapping_id) => {
+                message = format!("RemoveMapping: {:?}", mapping_id);
+                producer.enqueue("mapping_data".to_string(), message, "test".to_string());
+            },
+        }
+    }
 }
+
+
+
 
 #[cfg(test)]
 pub(crate) mod test_helpers {
@@ -923,6 +968,7 @@ function a:
 
         // Initialize the VM.
         let vm = sample_vm();
+        let test_producer = Arc::new(Mutex::new(KafkaProducer::new()));
         // Update the VM.
         vm.add_next_block(&genesis).unwrap();
 

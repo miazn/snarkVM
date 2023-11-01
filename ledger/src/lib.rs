@@ -25,6 +25,7 @@ pub use ledger_committee as committee;
 pub use ledger_narwhal as narwhal;
 pub use ledger_query as query;
 pub use ledger_store as store;
+pub use parking_lot::Mutex;
 use store::helpers::kafka::KafkaProducer;
 
 pub use crate::block::*;
@@ -166,7 +167,7 @@ impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
             coinbase_puzzle: CoinbasePuzzle::<N>::load()?,
             current_epoch_challenge: Default::default(),
             current_committee: Arc::new(RwLock::new(current_committee)),
-            current_block: Arc::new(RwLock::new(genesis_block.clone())),
+            current_block: Arc::new(RwLock::new(genesis_block.clone()))
         };
 
         // If the block store is empty, initialize the genesis block.
