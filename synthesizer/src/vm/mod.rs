@@ -317,27 +317,27 @@ impl<N: Network, C: ConsensusStorage<N>> VM<N, C> {
 
         match operation {
             FinalizeOperation::InitializeMapping(mapping_id) => {
-                message = format!("InitializeMapping: {:?}", mapping_id);
+                message = format!(r#"{{"InitializeMapping": "{:?}"}}"#, mapping_id);
                 producer.enqueue("mapping_data".to_string(), message, "test".to_string());
             },
             FinalizeOperation::InsertKeyValue(mapping_id, key_id, value_id) => {
-                message = format!("InsertKeyValue: {:?}, {:?}, {:?}", mapping_id, key_id, value_id);
+                message = format!(r#"{{"InsertKeyValue": "{:?}, {:?}, {:?}"}}"#, mapping_id, key_id, value_id);
                 producer.enqueue("mapping_data".to_string(), message, "test".to_string());
             },
             FinalizeOperation::UpdateKeyValue(mapping_id, index, key_id, value_id) => {
-                message = format!("UpdateKeyValue: {:?}, {}, {:?}, {:?}", mapping_id, index, key_id, value_id);
+                message = format!(r#"{{"UpdateKeyValue": "{:?}, {}, {:?}, {:?}"}}"#, mapping_id, index, key_id, value_id);
                 producer.enqueue("mapping_data".to_string(), message, "test".to_string());
             },
             FinalizeOperation::RemoveKeyValue(mapping_id, index) => {
-                message = format!("RemoveKeyValue: {:?}, {}", mapping_id, index);
+                message = format!(r#"{{"RemoveKeyValue": "{:?}, {}"}}"#, mapping_id, index);
                 producer.enqueue("mapping_data".to_string(), message, "test".to_string());
             },
             FinalizeOperation::ReplaceMapping(mapping_id) => {
-                message = format!("ReplaceMapping: {:?}", mapping_id);
+                message = format!(r#"{{"ReplaceMapping": "{:?}"}}"#, mapping_id);
                 producer.enqueue("mapping_data".to_string(), message, "test".to_string());
             },
             FinalizeOperation::RemoveMapping(mapping_id) => {
-                message = format!("RemoveMapping: {:?}", mapping_id);
+                message = format!(r#"{{"RemoveMapping": "{:?}"}}"#, mapping_id);
                 producer.enqueue("mapping_data".to_string(), message, "test".to_string());
             },
         }

@@ -85,9 +85,8 @@ impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
     pub fn advance_to_next_block(&self, block: &Block<N>) -> Result<()> {
         // Acquire the write lock on the current block.
         let mut current_block = self.current_block.write();
-        let kafka_clone = self.kafka.clone();
         // Update the VM.
-        self.vm.add_next_block(block, &mut kafka_clone.lock())?;
+        self.vm.add_next_block(block)?;
         // Update the current block.
         *current_block = block.clone();
         // Drop the write lock on the current block.
