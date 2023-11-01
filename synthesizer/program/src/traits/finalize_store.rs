@@ -23,6 +23,9 @@ pub trait FinalizeStoreTrait<N: Network> {
     /// Returns `true` if the given `program ID` and `mapping name` exist.
     fn contains_mapping_confirmed(&self, program_id: &ProgramID<N>, mapping_name: &Identifier<N>) -> Result<bool>;
 
+    // emits mappings to kafka
+    fn emit_kafka_mappings(&self, message: String);
+
     /// Returns `true` if the given `program ID`, `mapping name`, and `key` exist.
     fn contains_key_speculative(
         &self,

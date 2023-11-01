@@ -16,7 +16,7 @@ use crate::{
     atomic_batch_scope,
     cow_to_cloned,
     cow_to_copied,
-    helpers::{Map, MapRead, NestedMap, NestedMapRead},
+    helpers::{Map, MapRead, NestedMap, NestedMapRead, kafka::KafkaProducer},
     program::{CommitteeStorage, CommitteeStore},
 };
 use console::{
@@ -25,10 +25,11 @@ use console::{
     types::Field,
 };
 use synthesizer_program::{FinalizeOperation, FinalizeStoreTrait};
-
 use anyhow::Result;
 use core::marker::PhantomData;
 use indexmap::IndexSet;
+use parking_lot::Mutex;
+use std::sync::Arc;
 
 /// TODO (howardwu): Remove this.
 /// Returns the mapping ID for the given `program ID` and `mapping name`.
@@ -526,6 +527,8 @@ pub struct FinalizeStore<N: Network, P: FinalizeStorage<N>> {
     storage: P,
     /// PhantomData.
     _phantom: PhantomData<N>,
+    /// The Kafka Producer
+    kafka: Arc<Mutex<KafkaProducer>>, 
 }
 
 impl<N: Network, P: FinalizeStorage<N>> FinalizeStore<N, P> {
@@ -543,7 +546,7 @@ impl<N: Network, P: FinalizeStorage<N>> FinalizeStore<N, P> {
     /// Initializes a finalize store from storage.
     pub fn from(storage: P) -> Result<Self> {
         // Return the finalize store.
-        Ok(Self { storage, _phantom: PhantomData })
+        Ok(Self { storage, _phantom: PhantomData, kafka: Arc::new(Mutex::new(KafkaProducer::new())) })
     }
 
     /// Starts an atomic batch write operation.
@@ -620,6 +623,11 @@ impl<N: Network, P: FinalizeStorage<N>> FinalizeStoreTrait<N> for FinalizeStore<
         self.storage.get_value_speculative(program_id, mapping_name, key)
     }
 
+    fn emit_kafka_mappings(&self, message: String) {
+        let producer = &mut self.kafka.lock();
+        producer.enqueue("mapping_data".to_string(), message, "test".to_string());
+    }
+
     /// Stores the given `(key, value)` pair at the given `program ID` and `mapping name` in storage.
     /// If the `mapping name` is not initialized, an error is returned.
     /// If the `key` already exists, the method returns an error.
@@ -630,6 +638,9 @@ impl<N: Network, P: FinalizeStorage<N>> FinalizeStoreTrait<N> for FinalizeStore<
         key: Plaintext<N>,
         value: Value<N>,
     ) -> Result<FinalizeOperation<N>> {
+        // message is of the format key = operating and value = mapping_name, key, value
+        let message = format!(r#"{{"insert_key_value": "{:?}, {:?}, {:?}"}}"#, mapping_name, key, value);
+        self.emit_kafka_mappings(message);
         self.storage.insert_key_value(program_id, mapping_name, key, value)
     }
 
@@ -644,6 +655,8 @@ impl<N: Network, P: FinalizeStorage<N>> FinalizeStoreTrait<N> for FinalizeStore<
         key: Plaintext<N>,
         value: Value<N>,
     ) -> Result<FinalizeOperation<N>> {
+        let message = format!(r#"{{"update_key_value": "{:?}, {:?}, {:?}"}}"#, mapping_name, key, value);
+        self.emit_kafka_mappings(message);
         self.storage.update_key_value(program_id, mapping_name, key, value)
     }
 
@@ -654,6 +667,8 @@ impl<N: Network, P: FinalizeStorage<N>> FinalizeStoreTrait<N> for FinalizeStore<
         mapping_name: Identifier<N>,
         key: &Plaintext<N>,
     ) -> Result<Option<FinalizeOperation<N>>> {
+        let message = format!(r#"{{"remove_key_value": "{:?}, {:?}"}}"#, mapping_name, key);
+        self.emit_kafka_mappings(message);
         self.storage.remove_key_value(program_id, mapping_name, key)
     }
 }
