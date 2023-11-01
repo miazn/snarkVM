@@ -295,13 +295,14 @@ impl<N: Network, C: ConsensusStorage<N>> VM<N, C> {
         self.block_store().insert(block)?;
         // Next, finalize the transactions.
         match self.finalize(state, block.ratifications(), block.solutions(), block.transactions()) {
-            Ok(ratified_finalize_operations) => {
-                // Here, you can send each ratified_finalize_operation to Kafka
-                for operation in ratified_finalize_operations {
-                    self.send_mappings_to_kafka(operation);
-                }
-                Ok(())
-            },
+            //Ok(ratified_finalize_operations) => {
+            //    // Here, you can send each ratified_finalize_operation to Kafka
+            //    for operation in ratified_finalize_operations {
+            //        self.send_mappings_to_kafka(operation);
+            //    }
+            //    Ok(())
+            //},
+            Ok(_ratified_finalize_operations) => Ok(()),
             Err(error) => {
                 // Rollback the block.
                 self.block_store().remove_last_n(1)?;
@@ -337,7 +338,8 @@ impl<N: Network, C: ConsensusStorage<N>> VM<N, C> {
                 producer.enqueue("mapping_data".to_string(), message, "test".to_string());
             },
             FinalizeOperation::RemoveMapping(mapping_id) => {
-                message = format!(r#"{{"RemoveMapping": "{:?}"}}"#, mapping_id);
+                message = format!("RemoveMapping: {:?}", mapping_id);
+                message = format!(r#"{{"ReplaceMapping": "{:?}"}}"#, mapping_id);
                 producer.enqueue("mapping_data".to_string(), message, "test".to_string());
             },
         }
