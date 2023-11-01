@@ -66,9 +66,20 @@ impl KafkaProducer {
     }
 
     // Enqueue a message to the internal buffer
+    //pub fn enqueue(&mut self, key: String, value: String, topic: String) {
+    //    let mut queue = self.queue.lock().unwrap();
+    //    queue.push((key, value, topic));
+    //}
+
     pub fn enqueue(&mut self, key: String, value: String, topic: String) {
-        let mut queue = self.queue.lock().unwrap();
-        queue.push((key, value, topic));
+        match self.queue.lock() {
+            Ok(mut queue) => {
+                queue.push((key, value, topic));
+            },
+            Err(poisoned_error) => {
+                println!("Failed to lock the queue due to a poisoned mutex. Error: {:?}", poisoned_error);
+            }
+        }
     }
 
     fn emit_queue_for_thread(producer: &BaseProducer, queue: &Arc<Mutex<Vec<(String, String, String)>>>) {
