@@ -107,7 +107,6 @@ impl KafkaProducer {
         let mut queue_guard = queue.lock().unwrap();
 
         while let Some((key, value, topic)) = queue_guard.pop() {
-            println!("sending message");
             producer
                 .send(BaseRecord::to(&topic).key(&key).payload(&value))
                 .expect("failed to send message");

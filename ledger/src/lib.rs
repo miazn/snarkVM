@@ -26,7 +26,6 @@ pub use ledger_narwhal as narwhal;
 pub use ledger_query as query;
 pub use ledger_store as store;
 pub use parking_lot::Mutex;
-use store::helpers::kafka::KafkaProducer;
 
 pub use crate::block::*;
 
@@ -194,77 +193,6 @@ impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
 
         finish!(timer, "Initialize ledger");
         Ok(ledger)
-    }
-
-
-    pub fn enqueue_block_kafka(&self, producer: &mut KafkaProducer, block: &Block<N>) {
-        // get iterator over all transactions in the block hash
-        let transactions = self.vm.block_store().get_block_transactions(&block.hash()).unwrap();
-        let unwrapped_transactions = transactions.unwrap();
-        let transactions_iter = unwrapped_transactions.transaction_ids();
-        
-        // key = block height/number and value = the transactions list
-        let formatted_string = format!(r#"{{"{:?}": "{:?}"}}"#, block.height(), unwrapped_transactions);
-        producer.enqueue("block-to-transactions".to_string(), formatted_string, "block-transactions".to_string());
-        let execution_store = self.vm.transaction_store();
-        let transition_store = self.vm.transition_store();
-        for tx in transactions_iter {
-            let transitions = execution_store.get_transaction(tx).unwrap();
-            let unwrapped_transitions = transitions.unwrap();
-            let transitions_iter = unwrapped_transitions.transition_ids();
-            let formatted_string = format!(r#"{{"{:?}": "{:?}"}}"#, tx, unwrapped_transitions);
-            producer.enqueue("transaction-to-transitions".to_string(), formatted_string, "transaction-transitions".to_string());
-            for transition in transitions_iter {
-                let transition_obj = transition_store.get_transition(transition);
-                println!("{:?}", transition_obj)
-            }
-        }
-    }
-
-    // enqueue verifying keys to kafka queue
-    // once the queue gets long enough, it will automatically send
-    pub fn enqueue_verifying_keys(&self, producer: &mut KafkaProducer) {
-        // test to see if this function is being called continuously
-        println!("TESTING enqueue loop");
-        producer.enqueue("TEST".to_string(), "test-enqueue function loop".to_string(), "test-loop".to_string());
-        let iter = self.vm.block_store().transaction_store().verifying_keys();
-        // verifying_keys returns iter_confirmed which returns each kv pair in the map
-
-        for item in iter {
-            //let formatted_string = format!("verifying-key-metric: {:?}", item);
-            let formatted_string = format!(r#"{{"verifying-key-metric": "{:?}"}}"#, item);
-            println!("Collected metric: {:?}", item);
-            producer.enqueue("verifying_key_map".to_string(), formatted_string, "test".to_string());
-            // send to kafka
-        }
-    }
-
-    // enqueue verifying keys to kafka queue
-    // once the queue gets long enough, it will automatically send
-    pub fn enqueue_program_mapping_names(&self, producer: &mut KafkaProducer, name: &str) {
-        // test to see if this function is being called continuously
-        println!("TESTING enqueue loop");
-        producer.enqueue("TEST".to_string(), "test-enqueue function loop for mappings".to_string(), "test-loop".to_string());
-        
-        let id = ProgramID::from_str(name).unwrap();
-        let result = self.vm.finalize_store().get_mapping_names_confirmed(&id);
-
-        match result {
-            Ok(Some(mapping_names_set)) => {
-                for mapping_name in &mapping_names_set {
-                    // Here, mapping_name is of type Identifier<N>
-                    let formatted_string = format!(r#"{{"mapping-names": "{:?}"}}"#, mapping_name);
-                    println!("{:?}", mapping_name);
-                    producer.enqueue("mapping_names".to_string(), formatted_string, "test-map".to_string());
-                }
-            }
-            Ok(None) => {
-                println!("No mapping names found for the provided program_id.");
-            }
-            Err(e) => {
-                eprintln!("Error retrieving the mapping names: {}", e);
-            }
-        }
     }
 
     /// Returns the VM.

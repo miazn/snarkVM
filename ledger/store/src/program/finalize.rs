@@ -30,6 +30,7 @@ use core::marker::PhantomData;
 use indexmap::IndexSet;
 use parking_lot::Mutex;
 use std::sync::Arc;
+use chrono::prelude::*;
 
 /// TODO (howardwu): Remove this.
 /// Returns the mapping ID for the given `program ID` and `mapping name`.
@@ -638,8 +639,8 @@ impl<N: Network, P: FinalizeStorage<N>> FinalizeStoreTrait<N> for FinalizeStore<
         key: Plaintext<N>,
         value: Value<N>,
     ) -> Result<FinalizeOperation<N>> {
-        // message is of the format key = operating and value = program id, mapping_name, key, value
-        let message = format!(r#"{{"insert_key_value": "{:?}, {:?}, {:?}, {:?}"}}"#, program_id, mapping_name, key, value);
+        // message is of the format key = operating and value = program id, mapping_name, key, value, timestamp
+        let message = format!(r#"{{"insert_key_value": "{:?}, {:?}, {:?}, {:?}, {:?}"}}"#, program_id, mapping_name, key, value, Utc::now());
         self.emit_kafka_mappings(message);
         self.storage.insert_key_value(program_id, mapping_name, key, value)
     }
@@ -655,7 +656,7 @@ impl<N: Network, P: FinalizeStorage<N>> FinalizeStoreTrait<N> for FinalizeStore<
         key: Plaintext<N>,
         value: Value<N>,
     ) -> Result<FinalizeOperation<N>> {
-        let message = format!(r#"{{"update_key_value": "{:?}, {:?}, {:?}, {:?}"}}"#, program_id, mapping_name, key, value);
+        let message = format!(r#"{{"update_key_value": "{:?}, {:?}, {:?}, {:?}, {:?}"}}"#, program_id, mapping_name, key, value, Utc::now());
         self.emit_kafka_mappings(message);
         self.storage.update_key_value(program_id, mapping_name, key, value)
     }
@@ -667,7 +668,7 @@ impl<N: Network, P: FinalizeStorage<N>> FinalizeStoreTrait<N> for FinalizeStore<
         mapping_name: Identifier<N>,
         key: &Plaintext<N>,
     ) -> Result<Option<FinalizeOperation<N>>> {
-        let message = format!(r#"{{"remove_key_value": "{:?}, {:?}, {:?}"}}"#, program_id, mapping_name, key);
+        let message = format!(r#"{{"remove_key_value": "{:?}, {:?}, {:?}, {:?}"}}"#, program_id, mapping_name, key, Utc::now());
         self.emit_kafka_mappings(message);
         self.storage.remove_key_value(program_id, mapping_name, key)
     }
