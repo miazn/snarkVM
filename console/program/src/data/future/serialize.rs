@@ -15,20 +15,31 @@
 use super::*;
 
 impl<N: Network> Serialize for Future<N> {
-    /// Serializes the future into a string or as bytes.
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match serializer.is_human_readable() {
-            true => serializer.collect_str(self),
+            true => {
+                let mut state = serializer.serialize_struct("Future", 3)?;
+                state.serialize_field("program_id", &self.program_id)?;
+                state.serialize_field("function_name", &self.function_name)?;
+                state.serialize_field("arguments", &self.arguments)?;
+                state.end()
+            }
             false => ToBytesSerializer::serialize_with_size_encoding(self, serializer),
         }
     }
 }
 
 impl<'de, N: Network> Deserialize<'de> for Future<N> {
-    /// Deserializes the future from a string or bytes.
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         match deserializer.is_human_readable() {
-            true => FromStr::from_str(&String::deserialize(deserializer)?).map_err(de::Error::custom),
+            true => {
+                let mut value = serde_json::Value::deserialize(deserializer)?;
+                let program_id: ProgramID<N> = DeserializeExt::take_from_value::<D>(&mut value, "program_id")?;
+                let function_name: Identifier<N> = DeserializeExt::take_from_value::<D>(&mut value, "function_name")?;
+                let arguments: Vec<Argument<N>> = DeserializeExt::take_from_value::<D>(&mut value, "arguments")?;
+
+                Ok(Future { program_id, function_name, arguments })
+            }
             false => FromBytesDeserializer::<Self>::deserialize_with_size_encoding(deserializer, "future"),
         }
     }
