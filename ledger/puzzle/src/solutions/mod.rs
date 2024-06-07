@@ -86,7 +86,6 @@ impl<N: Network> Deref for PuzzleSolutions<N> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::PartialSolution;
     use console::account::{Address, PrivateKey};
 
     use std::collections::HashSet;
@@ -104,8 +103,7 @@ mod tests {
             let private_key = PrivateKey::<CurrentNetwork>::new(rng).unwrap();
             let address = Address::try_from(private_key).unwrap();
 
-            let partial_solution = PartialSolution::new(rng.gen(), address, u64::rand(rng)).unwrap();
-            let solution = Solution::new(partial_solution, u64::rand(rng));
+            let solution = Solution::new(rng.gen(), address, u64::rand(rng)).unwrap();
             solutions.push(solution);
         }
         PuzzleSolutions::new(solutions).unwrap()
