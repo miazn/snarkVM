@@ -57,6 +57,8 @@ pub enum MappingName {
     Unbonding,
     /// The `withdraw` mapping.
     Withdraw,
+    /// The `staking_rewards` mapping.
+    StakingRewards,
 }
 
 impl Display for MappingName {
@@ -67,6 +69,7 @@ impl Display for MappingName {
             Self::Metadata => write!(f, "metadata"),
             Self::Unbonding => write!(f, "unbonding"),
             Self::Withdraw => write!(f, "withdraw"),
+            Self::StakingRewards => write!(f, "staking_rewards"),
         }
     }
 }

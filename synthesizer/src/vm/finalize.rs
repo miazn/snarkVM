@@ -1294,6 +1294,9 @@ impl<N: Network, C: ConsensusStorage<N>> VM<N, C> {
                             let withdraw_mapping = Identifier::from_str("withdraw")?;
                             let withdraw_map = store.get_mapping_speculative(program_id, withdraw_mapping)?;
                             history.store_mapping(state.block_height(), MappingName::Withdraw, &withdraw_map)?;
+
+                            // Write the calculated staking rewards at this block to JSON.
+                            history.store_mapping(state.block_height(), MappingName::StakingRewards, &next_stakers)?;
                         }
                     }
 
