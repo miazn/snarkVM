@@ -137,6 +137,104 @@ pub fn staking_rewards<N: Network>(
         .collect()
 }
 
+// same as above function, but
+pub fn staking_rewards_historical_mapping<N: Network>(
+    stakers: &IndexMap<Address<N>, (Address<N>, u64)>,
+    committee: &Committee<N>,
+    block_reward: u64,
+) -> IndexMap<Address<N>, (Address<N>, u64)> {
+    // If the list of stakers is empty, there is no stake, or the block reward is 0, return the stakers.
+    if stakers.is_empty() || committee.total_stake() == 0 || block_reward == 0 {
+        return stakers.clone();
+    }
+
+    // Compute the updated stakers.
+    cfg_iter!(stakers)
+        .map(|(staker, (validator, stake))| {
+            // If the validator is not in the committee, skip the staker.
+            let Some((validator_stake, _is_open, commission_rate)) = committee.members().get(validator) else {
+                trace!("Validator {validator} is not in the committee - skipping {staker}");
+                return (*staker, (*validator, *stake));
+            };
+
+            // If the commission rate is greater than 100, skip the staker.
+            if *commission_rate > 100 {
+                error!("Commission rate ({commission_rate}) is greater than 100 - skipping {staker}");
+                return (*staker, (*validator, *stake));
+            }
+
+            // If the validator has more than 25% of the total stake, skip the staker.
+            if *validator_stake > committee.total_stake().saturating_div(4) {
+                trace!("Validator {validator} has more than 25% of the total stake - skipping {staker}");
+                return (*staker, (*validator, *stake));
+            }
+
+            // If the staker has less than the minimum required stake, skip the staker, unless the staker is the validator.
+            if *stake < MIN_DELEGATOR_STAKE && *staker != *validator {
+                trace!("Staker has less than {MIN_DELEGATOR_STAKE} microcredits - skipping {staker}");
+                return (*staker, (*validator, *stake));
+            }
+
+            // Compute the numerator.
+            let numerator = (block_reward as u128).saturating_mul(*stake as u128);
+            // Compute the denominator.
+            // Note: We guarantee this denominator cannot be 0 (as we return early if the total stake is 0).
+            let denominator = committee.total_stake() as u128;
+            // Compute the quotient.
+            let quotient = numerator.saturating_div(denominator);
+            // Ensure the staking reward is within a safe bound.
+            if quotient > MAX_COINBASE_REWARD as u128 {
+                error!("Staking reward ({quotient}) is too large - skipping {staker}");
+                return (*staker, (*validator, *stake));
+            }
+            // Cast the staking reward as a u64.
+            // Note: This '.expect' is guaranteed to be safe, as we ensure the quotient is within a safe bound.
+            let staking_reward = u64::try_from(quotient).expect("Staking reward is too large");
+
+            // Update the staking reward with the commission.
+            //
+            // Note: This approach to computing commissions is far more computationally-efficient,
+            // however it does introduce a small (deterministic) precision error that is accepted for the
+            // sake of performance. There is a negligible difference (at most 100 microcredits per delegator)
+            // between the validators (+) and the delegators (-) in the allocated commission difference.
+            let staking_reward_after_commission = match staker == validator {
+                // If the staker is the validator, add the total commission to the staking reward.
+                true => {
+                    // Calculate the total stake delegated to the validator.
+                    let total_delegated_stake = validator_stake.saturating_sub(*stake);
+                    // Compute the numerator.
+                    let numerator = (block_reward as u128).saturating_mul(total_delegated_stake as u128);
+                    // Compute the quotient. This quotient is the total staking reward recieved by delegators.
+                    let quotient = numerator.saturating_div(denominator);
+                    // Compute the commission.
+                    let total_commission_to_receive =
+                        quotient.saturating_mul(*commission_rate as u128).saturating_div(100u128);
+                    // Cast the commission as a u64.
+                    // Note: This '.expect' is guaranteed to be safe, as we ensure the commission is within a safe bound.
+                    let total_commission_to_receive =
+                        u64::try_from(total_commission_to_receive).expect("Commission is too large");
+
+                    // Add the commission to the validator staking reward.
+                    staking_reward.saturating_add(total_commission_to_receive)
+                }
+                // If the staker is a delegator, subtract the commission from the staking reward.
+                false => {
+                    // Calculate the commission.
+                    let commission = quotient.saturating_mul(*commission_rate as u128).saturating_div(100u128);
+                    // Cast the commission as a u64.
+                    // Note: This '.expect' is guaranteed to be safe, as we ensure the quotient is within a safe bound.
+                    let commission_to_pay = u64::try_from(commission).expect("Commission is too large");
+
+                    // Subtract the commission from the delegator staking reward.
+                    staking_reward.saturating_sub(commission_to_pay)
+                }
+            };
+            // Return the staker and the updated stake.
+            (*staker, (*validator, staking_reward_after_commission))
+        })
+        .collect()
+}
+
 /// Returns the proving rewards for a given coinbase reward and list of prover solutions.
 /// The prover reward is defined as: `puzzle_reward * (proof_target / combined_proof_target)`.
 pub fn proving_rewards<N: Network>(

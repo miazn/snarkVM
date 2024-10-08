@@ -1296,7 +1296,9 @@ impl<N: Network, C: ConsensusStorage<N>> VM<N, C> {
                             history.store_mapping(state.block_height(), MappingName::Withdraw, &withdraw_map)?;
 
                             // Write the calculated staking rewards at this block to JSON.
-                            history.store_mapping(state.block_height(), MappingName::StakingRewards, &next_stakers)?;
+                            let next_rewards =
+                                staking_rewards_historical_mapping(&current_stakers, &current_committee, *block_reward);
+                            history.store_mapping(state.block_height(), MappingName::StakingRewards, &next_rewards)?;
                         }
                     }
 
