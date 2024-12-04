@@ -58,10 +58,15 @@ impl<'de, N: Network> Deserialize<'de> for Block<N> {
                 )
                 .map_err(de::Error::custom)?;
 
+                // Debug logs to compare fields and hashes
+                println!("Deserialized block fields: {:?}", block);
+                println!("Serialized block hash: {:?}", block_hash);
+                println!("Recalculated block hash: {:?}", block.hash());
+
                 // Ensure the block hash matches.
                 match block_hash == block.hash() {
                     true => Ok(block),
-                    false => Err(de::Error::custom(error("Mismatching block hash, possible data corruption"))),
+                    false => Err(de::Error::custom("Mismatching block hash, possible data corruption")),
                 }
             }
             false => FromBytesDeserializer::<Self>::deserialize_with_size_encoding(deserializer, "block"),
