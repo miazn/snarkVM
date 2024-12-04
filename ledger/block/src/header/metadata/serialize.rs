@@ -44,27 +44,39 @@ impl<'de, N: Network> Deserialize<'de> for Metadata<N> {
         match deserializer.is_human_readable() {
             true => {
                 let mut metadata = serde_json::Value::deserialize(deserializer)?;
+
+                // Helper to handle both number and string representations
+                fn parse_u128<D: Deserializer<'de>>(value: &serde_json::Value) -> Result<u128, D::Error> {
+                    match value {
+                        serde_json::Value::Number(number) => {
+                            if let Some(u) = number.as_u64() {
+                                Ok(u as u128)
+                            } else if let Some(f) = number.as_f64() {
+                                f.to_string().parse::<u128>().map_err(de::Error::custom)
+                            } else {
+                                Err(de::Error::custom("Invalid number for u128"))
+                            }
+                        }
+                        serde_json::Value::String(string) => {
+                            string.parse::<u128>().map_err(de::Error::custom)
+                        }
+                        _ => Err(de::Error::custom("Invalid type for u128")),
+                    }
+                }
+
+                let cumulative_weight = parse_u128::<D>(
+                    metadata.get("cumulative_weight").ok_or_else(|| de::Error::missing_field("cumulative_weight"))?,
+                )?;
+                let cumulative_proof_target = parse_u128::<D>(
+                    metadata.get("cumulative_proof_target").ok_or_else(|| de::Error::missing_field("cumulative_proof_target"))?,
+                )?;
+
                 Ok(Self::new(
                     DeserializeExt::take_from_value::<D>(&mut metadata, "network")?,
                     DeserializeExt::take_from_value::<D>(&mut metadata, "round")?,
                     DeserializeExt::take_from_value::<D>(&mut metadata, "height")?,
-                    {
-                        let value = DeserializeExt::take_from_value::<D>(&mut metadata, "cumulative_weight")?;
-                        match value {
-                            serde_json::Value::Number(number) => {
-                                if number.is_u64() {
-                                    number.as_u64().unwrap() as u128
-                                } else if number.is_f64() {
-                                    number.as_f64().unwrap().to_string().parse::<u128>().map_err(de::Error::custom)?
-                                } else {
-                                    number.to_string().parse::<u128>().map_err(de::Error::custom)?
-                                }
-                            }
-                            serde_json::Value::String(string) => string.parse::<u128>().map_err(de::Error::custom)?,
-                            _ => return Err(de::Error::custom("Invalid type for cumulative_weight")),
-                        }
-                    },
-                    DeserializeExt::take_from_value::<D>(&mut metadata, "cumulative_proof_target")?,
+                    cumulative_weight,
+                    cumulative_proof_target,
                     DeserializeExt::take_from_value::<D>(&mut metadata, "coinbase_target")?,
                     DeserializeExt::take_from_value::<D>(&mut metadata, "proof_target")?,
                     DeserializeExt::take_from_value::<D>(&mut metadata, "last_coinbase_target")?,
