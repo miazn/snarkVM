@@ -48,7 +48,22 @@ impl<'de, N: Network> Deserialize<'de> for Metadata<N> {
                     DeserializeExt::take_from_value::<D>(&mut metadata, "network")?,
                     DeserializeExt::take_from_value::<D>(&mut metadata, "round")?,
                     DeserializeExt::take_from_value::<D>(&mut metadata, "height")?,
-                    DeserializeExt::take_from_value::<D>(&mut metadata, "cumulative_weight")?,
+                    {
+                        let value = DeserializeExt::take_from_value::<D>(&mut metadata, "cumulative_weight")?;
+                        match value {
+                            serde_json::Value::Number(number) => {
+                                if number.is_u64() {
+                                    number.as_u64().unwrap() as u128
+                                } else if number.is_f64() {
+                                    number.as_f64().unwrap().to_string().parse::<u128>().map_err(de::Error::custom)?
+                                } else {
+                                    number.to_string().parse::<u128>().map_err(de::Error::custom)?
+                                }
+                            }
+                            serde_json::Value::String(string) => string.parse::<u128>().map_err(de::Error::custom)?,
+                            _ => return Err(de::Error::custom("Invalid type for cumulative_weight")),
+                        }
+                    },
                     DeserializeExt::take_from_value::<D>(&mut metadata, "cumulative_proof_target")?,
                     DeserializeExt::take_from_value::<D>(&mut metadata, "coinbase_target")?,
                     DeserializeExt::take_from_value::<D>(&mut metadata, "proof_target")?,
