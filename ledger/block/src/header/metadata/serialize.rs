@@ -45,8 +45,7 @@ impl<'de, N: Network> Deserialize<'de> for Metadata<N> {
             true => {
                 let mut metadata = serde_json::Value::deserialize(deserializer)?;
 
-                // Helper to handle both number and string representations
-                fn parse_u128<D: Deserializer<'de>>(value: &serde_json::Value) -> Result<u128, D::Error> {
+                fn parse_u128<'de, D: Deserializer<'de>>(value: &serde_json::Value) -> Result<u128, D::Error> {
                     match value {
                         serde_json::Value::Number(number) => {
                             if let Some(u) = number.as_u64() {
@@ -57,9 +56,7 @@ impl<'de, N: Network> Deserialize<'de> for Metadata<N> {
                                 Err(de::Error::custom("Invalid number for u128"))
                             }
                         }
-                        serde_json::Value::String(string) => {
-                            string.parse::<u128>().map_err(de::Error::custom)
-                        }
+                        serde_json::Value::String(string) => string.parse::<u128>().map_err(de::Error::custom),
                         _ => Err(de::Error::custom("Invalid type for u128")),
                     }
                 }
@@ -68,7 +65,9 @@ impl<'de, N: Network> Deserialize<'de> for Metadata<N> {
                     metadata.get("cumulative_weight").ok_or_else(|| de::Error::missing_field("cumulative_weight"))?,
                 )?;
                 let cumulative_proof_target = parse_u128::<D>(
-                    metadata.get("cumulative_proof_target").ok_or_else(|| de::Error::missing_field("cumulative_proof_target"))?,
+                    metadata
+                        .get("cumulative_proof_target")
+                        .ok_or_else(|| de::Error::missing_field("cumulative_proof_target"))?,
                 )?;
 
                 Ok(Self::new(
