@@ -38,16 +38,30 @@ impl<N: Network> Serialize for Block<N> {
 }
 
 impl<'de, N: Network> Deserialize<'de> for Block<N> {
-    /// Deserializes the block from a JSON-string or buffer.
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         match deserializer.is_human_readable() {
             true => {
                 let mut block = serde_json::Value::deserialize(deserializer)?;
+                
+                // Print raw block Value structure
+                println!("Raw block Value: {:?}", block);
+                
                 let block_hash: N::BlockHash = DeserializeExt::take_from_value::<D>(&mut block, "block_hash")?;
+                
+                // Print header directly from the Value
                 if let Some(header) = block.get("header") {
-                    println!("Raw header JSON: {}", serde_json::to_string(header).unwrap());
+                    println!("Raw header Value: {:?}", header);
+                } else {
+                    println!("No header found in block!");
                 }
-                // Recover the block.
+
+                // Print individual header fields if they exist
+                if let Some(obj) = block.get("header").and_then(|h| h.as_object()) {
+                    for (key, value) in obj {
+                        println!("Header field '{}': {:?}", key, value);
+                    }
+                }
+                
                 let block = Self::from(
                     DeserializeExt::take_from_value::<D>(&mut block, "previous_hash")?,
                     DeserializeExt::take_from_value::<D>(&mut block, "header")?,
@@ -60,22 +74,24 @@ impl<'de, N: Network> Deserialize<'de> for Block<N> {
                 )
                 .map_err(de::Error::custom)?;
 
-                // Debug logs to compare fields and hashes
-                println!("Deserialized block fields: {:?}", block);
-                println!("Serialized block hash: {:?}", block_hash);
-                println!("Recalculated block hash: {:?}", block.hash());
+                println!("Block hash before comparison: {:?}", block_hash);
+                println!("Calculated hash before comparison: {:?}", block.hash());
 
-                // Ensure the block hash matches.
                 match block_hash == block.hash() {
                     true => Ok(block),
-                    false => Err(de::Error::custom("Mismatching block hash, possible data corruption")),
+                    false => {
+                        println!("Hash mismatch details:");
+                        println!("  Original: {:?}", block_hash);
+                        println!("  Calculated: {:?}", block.hash());
+                        println!("  Difference detected!");
+                        Err(de::Error::custom("Mismatching block hash, possible data corruption"))
+                    }
                 }
             }
             false => FromBytesDeserializer::<Self>::deserialize_with_size_encoding(deserializer, "block"),
         }
     }
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
