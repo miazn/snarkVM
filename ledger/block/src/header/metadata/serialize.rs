@@ -44,36 +44,34 @@ impl<'de, N: Network> Deserialize<'de> for Metadata<N> {
         match deserializer.is_human_readable() {
             true => {
                 let mut metadata = serde_json::Value::deserialize(deserializer)?;
-
+ 
                 fn parse_u128<'de, D: Deserializer<'de>>(value: &serde_json::Value) -> Result<u128, D::Error> {
                     match value {
                         serde_json::Value::Number(number) => {
-                            if let Some(u) = number.as_u64() {
-                                Ok(u as u128)
-                            } else if let Some(f) = number.as_f64() {
-                                f.to_string().parse::<u128>().map_err(de::Error::custom)
-                            } else {
-                                Err(de::Error::custom("Invalid number for u128"))
-                            }
+                            // Always use string representation to preserve full precision
+                            number.to_string().parse::<u128>().map_err(de::Error::custom)
                         }
                         serde_json::Value::String(string) => string.parse::<u128>().map_err(de::Error::custom),
                         _ => Err(de::Error::custom("Invalid type for u128")),
                     }
                 }
-
+ 
+                // Peek at height for logging
+                let height = metadata.get("height")
+                    .and_then(|v| v.as_u64())
+                    .ok_or_else(|| de::Error::missing_field("height"))?;
+ 
                 let cumulative_weight = parse_u128::<D>(
                     metadata.get("cumulative_weight").ok_or_else(|| de::Error::missing_field("cumulative_weight"))?,
                 )?;
-                println!("Deserialized cumulative_weight: {} for block {:?}", cumulative_weight,
-                metadata.get("height")
-    .and_then(|v| v.as_u64())
-    .ok_or_else(|| de::Error::missing_field("height"))?);
+                println!("Deserialized cumulative_weight: {} for block {}", cumulative_weight, height);
+ 
                 let cumulative_proof_target = parse_u128::<D>(
                     metadata
                         .get("cumulative_proof_target")
                         .ok_or_else(|| de::Error::missing_field("cumulative_proof_target"))?,
                 )?;
-
+ 
                 Ok(Self::new(
                     DeserializeExt::take_from_value::<D>(&mut metadata, "network")?,
                     DeserializeExt::take_from_value::<D>(&mut metadata, "round")?,
@@ -91,8 +89,7 @@ impl<'de, N: Network> Deserialize<'de> for Metadata<N> {
             false => FromBytesDeserializer::<Self>::deserialize_with_size_encoding(deserializer, "metadata"),
         }
     }
-}
-
+ }
 #[cfg(test)]
 mod tests {
     use super::*;
