@@ -44,12 +44,32 @@ impl<'de, N: Network> Deserialize<'de> for Metadata<N> {
         match deserializer.is_human_readable() {
             true => {
                 let mut metadata = serde_json::Value::deserialize(deserializer)?;
-                let cumulative_weight: String =
-                    DeserializeExt::take_from_value::<D>(&mut metadata, "cumulative_weight")?;
-                let cumulative_proof_target: String =
-                    DeserializeExt::take_from_value::<D>(&mut metadata, "cumulative_proof_target")?;
-                let cumulative_weight = cumulative_weight.parse::<u128>().map_err(de::Error::custom)?;
-                let cumulative_proof_target = cumulative_proof_target.parse::<u128>().map_err(de::Error::custom)?;
+
+                fn parse_u128<'de, D: Deserializer<'de>>(value: &serde_json::Value) -> Result<u128, D::Error> {
+                    match value {
+                        serde_json::Value::Number(number) => {
+                            if let Some(u) = number.as_u64() {
+                                Ok(u as u128)
+                            } else if let Some(f) = number.as_f64() {
+                                f.to_string().parse::<u128>().map_err(de::Error::custom)
+                            } else {
+                                Err(de::Error::custom("Invalid number for u128"))
+                            }
+                        }
+                        serde_json::Value::String(string) => string.parse::<u128>().map_err(de::Error::custom),
+                        _ => Err(de::Error::custom("Invalid type for u128")),
+                    }
+                }
+
+                let cumulative_weight = parse_u128::<D>(
+                    metadata.get("cumulative_weight").ok_or_else(|| de::Error::missing_field("cumulative_weight"))?,
+                )?;
+                let cumulative_proof_target = parse_u128::<D>(
+                    metadata
+                        .get("cumulative_proof_target")
+                        .ok_or_else(|| de::Error::missing_field("cumulative_proof_target"))?,
+                )?;
+
                 Ok(Self::new(
                     DeserializeExt::take_from_value::<D>(&mut metadata, "network")?,
                     DeserializeExt::take_from_value::<D>(&mut metadata, "round")?,
