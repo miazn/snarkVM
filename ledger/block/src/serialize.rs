@@ -80,11 +80,13 @@ impl<'de, N: Network> Deserialize<'de> for Block<N> {
                 match block_hash == block.hash() {
                     true => Ok(block),
                     false => {
-                        println!("Hash mismatch details:");
-                        println!("  Original: {:?}", block_hash);
-                        println!("  Calculated: {:?}", block.hash());
-                        println!("  Difference detected!");
-                        Err(de::Error::custom("Mismatching block hash, possible data corruption"))
+                        println!("Hash mismatch details for block {}", block.header().metadata().height());
+                        println!("  Block height: {}", block.header().metadata().height());
+                        println!("  Original hash: {:?}", block_hash);
+                        println!("  Calculated hash: {:?}", block.hash());
+                        println!("  Difference detected for block {}!", block.header().metadata().height());
+                        Err(de::Error::custom(format!("Mismatching block hash for block {}, possible data corruption", 
+                        block.header().metadata().height())))
                     }
                 }
             }
