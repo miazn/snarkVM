@@ -64,6 +64,10 @@ impl<'de, N: Network> Deserialize<'de> for Metadata<N> {
                 let cumulative_weight = parse_u128::<D>(
                     metadata.get("cumulative_weight").ok_or_else(|| de::Error::missing_field("cumulative_weight"))?,
                 )?;
+                println!("Deserialized cumulative_weight: {} for block {:?}", cumulative_weight,
+                metadata.get("height")
+    .and_then(|v| v.as_u64())
+    .ok_or_else(|| de::Error::missing_field("height"))?);
                 let cumulative_proof_target = parse_u128::<D>(
                     metadata
                         .get("cumulative_proof_target")
