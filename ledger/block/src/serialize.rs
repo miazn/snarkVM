@@ -44,7 +44,9 @@ impl<'de, N: Network> Deserialize<'de> for Block<N> {
             true => {
                 let mut block = serde_json::Value::deserialize(deserializer)?;
                 let block_hash: N::BlockHash = DeserializeExt::take_from_value::<D>(&mut block, "block_hash")?;
-
+                if let Some(header) = block.get("header") {
+                    println!("Raw header JSON: {}", serde_json::to_string(header).unwrap());
+                }
                 // Recover the block.
                 let block = Self::from(
                     DeserializeExt::take_from_value::<D>(&mut block, "previous_hash")?,
