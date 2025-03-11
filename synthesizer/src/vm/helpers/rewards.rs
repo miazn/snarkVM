@@ -155,25 +155,25 @@ pub fn staking_rewards_historical_mapping<N: Network>(
             // If the validator is not in the committee, skip the staker.
             let Some((validator_stake, _is_open, commission_rate)) = committee.members().get(validator) else {
                 trace!("Validator {validator} is not in the committee - skipping {staker}");
-                return (*staker, (*validator, *stake));
+                return (*staker, (*validator, 0));
             };
 
             // If the commission rate is greater than 100, skip the staker.
             if *commission_rate > 100 {
                 error!("Commission rate ({commission_rate}) is greater than 100 - skipping {staker}");
-                return (*staker, (*validator, *stake));
+                return (*staker, (*validator, 0));
             }
 
             // If the validator has more than 25% of the total stake, skip the staker.
             if *validator_stake > committee.total_stake().saturating_div(4) {
                 trace!("Validator {validator} has more than 25% of the total stake - skipping {staker}");
-                return (*staker, (*validator, *stake));
+                return (*staker, (*validator, 0));
             }
 
             // If the staker has less than the minimum required stake, skip the staker, unless the staker is the validator.
             if *stake < MIN_DELEGATOR_STAKE && *staker != *validator {
                 trace!("Staker has less than {MIN_DELEGATOR_STAKE} microcredits - skipping {staker}");
-                return (*staker, (*validator, *stake));
+                return (*staker, (*validator, 0));
             }
 
             // Compute the numerator.
@@ -186,7 +186,7 @@ pub fn staking_rewards_historical_mapping<N: Network>(
             // Ensure the staking reward is within a safe bound.
             if quotient > MAX_COINBASE_REWARD as u128 {
                 error!("Staking reward ({quotient}) is too large - skipping {staker}");
-                return (*staker, (*validator, *stake));
+                return (*staker, (*validator, 0));
             }
             // Cast the staking reward as a u64.
             // Note: This '.expect' is guaranteed to be safe, as we ensure the quotient is within a safe bound.
