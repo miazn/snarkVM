@@ -135,14 +135,19 @@ impl Network for TestnetV0 {
 
     /// A list of (consensus_version, block_height) pairs indicating when each consensus version takes effect.
     /// Documentation for what is changed at each version can be found in `N::CONSENSUS_VERSION`
+    // TODO (raychu86): Determine the migration height for ConsensusVersion::V4.
     #[cfg(not(any(test, feature = "test")))]
-    const CONSENSUS_VERSION_HEIGHTS: [(ConsensusVersion, u32); 3] =
-        [(ConsensusVersion::V1, 0), (ConsensusVersion::V2, 2_950_000), (ConsensusVersion::V3, 4_800_000)];
+    const CONSENSUS_VERSION_HEIGHTS: [(ConsensusVersion, u32); 4] = [
+        (ConsensusVersion::V1, 0),
+        (ConsensusVersion::V2, 2_950_000),
+        (ConsensusVersion::V3, 4_800_000),
+        (ConsensusVersion::V4, 6_650_000),
+    ];
     /// A list of (consensus_version, block_height) pairs indicating when each consensus version takes effect.
     /// Documentation for what is changed at each version can be found in `N::CONSENSUS_VERSION`
     #[cfg(any(test, feature = "test"))]
-    const CONSENSUS_VERSION_HEIGHTS: [(ConsensusVersion, u32); 3] =
-        [(ConsensusVersion::V1, 0), (ConsensusVersion::V2, 10), (ConsensusVersion::V3, 11)];
+    const CONSENSUS_VERSION_HEIGHTS: [(ConsensusVersion, u32); 4] =
+        [(ConsensusVersion::V1, 0), (ConsensusVersion::V2, 10), (ConsensusVersion::V3, 11), (ConsensusVersion::V4, 12)];
     /// The network edition.
     const EDITION: u16 = 0;
     /// The genesis block coinbase target.

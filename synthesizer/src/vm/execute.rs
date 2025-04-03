@@ -137,6 +137,14 @@ impl<N: Network, C: ConsensusStorage<N>> VM<N, C> {
         };
         lap!(timer, "Prepare the query");
 
+        // Determine which Varuna version to use.
+        let consensus_version = N::CONSENSUS_VERSION(query.current_block_height()?)?;
+        let varuna_version = if (ConsensusVersion::V1..=ConsensusVersion::V3).contains(&consensus_version) {
+            VarunaVersion::V1
+        } else {
+            VarunaVersion::V2
+        };
+
         macro_rules! logic {
             ($process:expr, $network:path, $aleo:path) => {{
                 // Prepare the authorization.
@@ -150,7 +158,7 @@ impl<N: Network, C: ConsensusStorage<N>> VM<N, C> {
                 lap!(timer, "Prepare the assignments");
 
                 // Compute the proof and construct the execution.
-                let execution = trace.prove_execution::<$aleo, _>(&locator, rng)?;
+                let execution = trace.prove_execution::<$aleo, _>(&locator, varuna_version, rng)?;
                 lap!(timer, "Compute the proof");
 
                 // Return the execution.
@@ -182,6 +190,14 @@ impl<N: Network, C: ConsensusStorage<N>> VM<N, C> {
         };
         lap!(timer, "Prepare the query");
 
+        // Determine which Varuna version to use.
+        let consensus_version = N::CONSENSUS_VERSION(query.current_block_height()?)?;
+        let varuna_version = if (ConsensusVersion::V1..=ConsensusVersion::V3).contains(&consensus_version) {
+            VarunaVersion::V1
+        } else {
+            VarunaVersion::V2
+        };
+
         macro_rules! logic {
             ($process:expr, $network:path, $aleo:path) => {{
                 // Prepare the authorization.
@@ -195,7 +211,7 @@ impl<N: Network, C: ConsensusStorage<N>> VM<N, C> {
                 lap!(timer, "Prepare the assignments");
 
                 // Compute the proof and construct the fee.
-                let fee = trace.prove_fee::<$aleo, _>(rng)?;
+                let fee = trace.prove_fee::<$aleo, _>(varuna_version, rng)?;
                 lap!(timer, "Compute the proof");
 
                 // Return the fee.

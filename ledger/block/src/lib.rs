@@ -600,6 +600,7 @@ impl<N: Network> Block<N> {
 #[cfg(test)]
 pub mod test_helpers {
     use super::*;
+    use algorithms::snark::varuna::VarunaVersion;
     use console::account::{Address, PrivateKey};
     use ledger_query::Query;
     use ledger_store::{BlockStore, helpers::memory::BlockMemory};
@@ -666,7 +667,7 @@ pub mod test_helpers {
         // Prepare the assignments.
         trace.prepare(Query::from(block_store)).unwrap();
         // Compute the proof and construct the execution.
-        let execution = trace.prove_execution::<CurrentAleo, _>(locator.0, rng).unwrap();
+        let execution = trace.prove_execution::<CurrentAleo, _>(locator.0, VarunaVersion::V1, rng).unwrap();
         // Convert the execution.
         // Note: This is a testing-only hack to adhere to Rust's dependency cycle rules.
         let execution = Execution::from_str(&execution.to_string()).unwrap();
