@@ -1,4 +1,4 @@
-// Copyright 2024 Aleo Network Foundation
+// Copyright 2024-2025 Aleo Network Foundation
 // This file is part of the snarkVM library.
 
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -94,7 +94,7 @@ impl<N: Network> BlockStorage<N> for BlockMemory<N> {
     type TransitionStorage = TransitionMemory<N>;
 
     /// Initializes the block storage.
-    fn open<S: Clone + Into<StorageMode>>(storage: S) -> Result<Self> {
+    fn open<S: Into<StorageMode>>(storage: S) -> Result<Self> {
         // Initialize the transition store.
         let transition_store = TransitionStore::<N, TransitionMemory<N>>::open(storage)?;
         // Initialize the transaction store.

@@ -1,4 +1,4 @@
-// Copyright 2024 Aleo Network Foundation
+// Copyright 2024-2025 Aleo Network Foundation
 // This file is part of the snarkVM library.
 
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -27,7 +27,7 @@ use algorithms::snark::varuna::VarunaVersion;
 use console::{
     account::{Address, PrivateKey},
     network::prelude::*,
-    program::{Argument, Identifier, Literal, Locator, Plaintext, ProgramID, ProgramOwner, Record, Value},
+    program::{Argument, Identifier, Literal, Locator, Plaintext, ProgramID, ProgramOwner, Record, Response, Value},
     types::{Field, Group, U64},
 };
 use ledger_block::{
@@ -67,7 +67,10 @@ use utilities::try_vm_runtime;
 use aleo_std::prelude::{finish, lap, timer};
 use indexmap::{IndexMap, IndexSet};
 use itertools::Either;
+#[cfg(feature = "locktick")]
+use locktick::parking_lot::{Mutex, RwLock};
 use lru::LruCache;
+#[cfg(not(feature = "locktick"))]
 use parking_lot::{Mutex, RwLock};
 use rand::{SeedableRng, rngs::StdRng};
 use std::{collections::HashSet, num::NonZeroUsize, sync::Arc};
@@ -477,35 +480,29 @@ pub(crate) mod test_helpers {
         types::Field,
     };
     use ledger_block::{Block, Header, Input, Metadata, Transition};
-    use ledger_store::helpers::memory::ConsensusMemory;
-    #[cfg(feature = "rocks")]
-    use ledger_store::helpers::rocksdb::ConsensusDB;
     use ledger_test_helpers::{large_transaction_program, small_transaction_program};
     use synthesizer_program::Program;
 
+    use aleo_std::StorageMode;
     use indexmap::IndexMap;
     use once_cell::sync::OnceCell;
     use serde_json::json;
-    #[cfg(feature = "rocks")]
-    use std::path::Path;
     use synthesizer_snark::{Proof, VerifyingKey};
 
     pub(crate) type CurrentNetwork = MainnetV0;
+    #[cfg(not(feature = "rocks"))]
+    type LedgerType = ledger_store::helpers::memory::ConsensusMemory<CurrentNetwork>;
+    #[cfg(feature = "rocks")]
+    type LedgerType = ledger_store::helpers::rocksdb::ConsensusDB<CurrentNetwork>;
 
     /// Samples a new finalize state.
     pub(crate) fn sample_finalize_state(block_height: u32) -> FinalizeGlobalState {
         FinalizeGlobalState::from(block_height as u64, block_height, [0u8; 32])
     }
 
-    pub(crate) fn sample_vm() -> VM<CurrentNetwork, ConsensusMemory<CurrentNetwork>> {
+    pub(crate) fn sample_vm() -> VM<CurrentNetwork, LedgerType> {
         // Initialize a new VM.
-        VM::from(ConsensusStore::open(None).unwrap()).unwrap()
-    }
-
-    #[cfg(feature = "rocks")]
-    pub(crate) fn sample_vm_rocks(path: &Path) -> VM<CurrentNetwork, ConsensusDB<CurrentNetwork>> {
-        // Initialize a new VM.
-        VM::from(ConsensusStore::open(path.to_owned()).unwrap()).unwrap()
+        VM::from(ConsensusStore::open(StorageMode::new_test(None)).unwrap()).unwrap()
     }
 
     pub(crate) fn sample_genesis_private_key(rng: &mut TestRng) -> PrivateKey<CurrentNetwork> {
@@ -530,9 +527,7 @@ pub(crate) mod test_helpers {
             .clone()
     }
 
-    pub(crate) fn sample_vm_with_genesis_block(
-        rng: &mut TestRng,
-    ) -> VM<CurrentNetwork, ConsensusMemory<CurrentNetwork>> {
+    pub(crate) fn sample_vm_with_genesis_block(rng: &mut TestRng) -> VM<CurrentNetwork, LedgerType> {
         // Initialize the VM.
         let vm = crate::vm::test_helpers::sample_vm();
         // Initialize the genesis block.
@@ -791,7 +786,7 @@ function compute:
     }
 
     pub fn sample_next_block<R: Rng + CryptoRng>(
-        vm: &VM<MainnetV0, ConsensusMemory<MainnetV0>>,
+        vm: &VM<MainnetV0, LedgerType>,
         private_key: &PrivateKey<MainnetV0>,
         transactions: &[Transaction<MainnetV0>],
         rng: &mut R,
@@ -2963,8 +2958,7 @@ function add_thrice:
         let block2 = sample_next_block(&vm, &genesis_private_key, &[], rng).unwrap();
 
         // Create a new, rocks-based VM shadowing the 1st one.
-        let tempdir = tempfile::tempdir().unwrap();
-        let vm = sample_vm_rocks(tempdir.path());
+        let vm = sample_vm();
         vm.add_next_block(&genesis).unwrap();
         // This time, however, try to insert the 2nd block first, which fails due to height.
         assert!(vm.add_next_block(&block2).is_err());

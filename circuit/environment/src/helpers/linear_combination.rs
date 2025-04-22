@@ -1,4 +1,4 @@
-// Copyright 2024 Aleo Network Foundation
+// Copyright 2024-2025 Aleo Network Foundation
 // This file is part of the snarkVM library.
 
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,6 +20,7 @@ use core::{
     fmt,
     ops::{Add, AddAssign, Mul, Neg, Sub},
 };
+use smallvec::SmallVec;
 
 // Before high level program operations are converted into constraints, they are first tracked as linear combinations.
 // Each linear combination corresponds to a portion or all of a single row of an R1CS matrix, and consists of:
@@ -31,11 +32,11 @@ use core::{
 // \end{itemize}
 // The constant and variable terms directly refer to how often the R1CS variables are invoked in a row.
 // A full R1CS row is "completed" when we introduce a multiplication between three non-const linear combinations (a*b=c).
-#[derive(Clone)]
+#[derive(Clone, Hash)]
 pub struct LinearCombination<F: PrimeField> {
     constant: F,
     /// The list of terms is kept sorted in order to speed up lookups.
-    terms: Vec<(Variable<F>, F)>,
+    terms: SmallVec<[(Variable<F>, F); 1]>,
     /// The value of this linear combination, defined as the sum of the `terms` and `constant`.
     value: F,
 }
@@ -490,7 +491,7 @@ mod tests {
     use super::*;
     use snarkvm_fields::{One as O, Zero as Z};
 
-    use std::rc::Rc;
+    use std::sync::Arc;
 
     #[test]
     fn test_zero() {
@@ -546,7 +547,7 @@ mod tests {
         let two = one + one;
         let four = two + two;
 
-        let start = LinearCombination::from(Variable::Public(Rc::new((1, one))));
+        let start = LinearCombination::from(Variable::Public(Arc::new((1, one))));
         assert!(!start.is_constant());
         assert_eq!(one, start.value());
 

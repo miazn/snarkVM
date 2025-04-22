@@ -1,4 +1,4 @@
-// Copyright 2024 Aleo Network Foundation
+// Copyright 2024-2025 Aleo Network Foundation
 // This file is part of the snarkVM library.
 
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -85,7 +85,7 @@ impl<N: Network> Transaction<N> {
         // Compute the transaction ID
         let transaction_id = match &fee {
             Some(fee) => {
-                // Compute the root of the transacton tree.
+                // Compute the root of the transaction tree.
                 *Self::transaction_tree(execution_tree, execution.len(), fee)?.root()
             }
             None => execution_id,

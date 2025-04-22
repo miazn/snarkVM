@@ -1,4 +1,4 @@
-// Copyright 2024 Aleo Network Foundation
+// Copyright 2024-2025 Aleo Network Foundation
 // This file is part of the snarkVM library.
 
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -56,6 +56,10 @@ pub struct BatchHeader<N: Network> {
 }
 
 impl<N: Network> BatchHeader<N> {
+    /// The maximum number of microcredits that can be spent on compute by the transactions in a batch.
+    /// This implies the block spend limit is bounded at `TRANSACTION_SPEND_LIMIT * N::NUM_MAX_CERTIFICATES`.
+    // TODO: div by 20 is temporary until we can dial in what the limit should be.
+    pub const BATCH_SPEND_LIMIT: u64 = N::TRANSACTION_SPEND_LIMIT * Self::MAX_TRANSMISSIONS_PER_BATCH as u64 / 20;
     /// The maximum number of rounds to store before garbage collecting.
     pub const MAX_GC_ROUNDS: usize = 100;
     /// The maximum number of transmissions in a batch.
@@ -295,5 +299,23 @@ pub mod test_helpers {
         }
         // Return the sample vector.
         sample
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use console::network::{CanaryV0, MainnetV0, TestnetV0};
+
+    #[test]
+    fn test_max_synthesis_cost_below_batch_spend_limit() {
+        fn max_synthesis_cost<N: Network>() -> u64 {
+            N::MAX_DEPLOYMENT_VARIABLES.saturating_add(N::MAX_DEPLOYMENT_CONSTRAINTS) * N::SYNTHESIS_FEE_MULTIPLIER
+        }
+
+        assert!(max_synthesis_cost::<CanaryV0>() < BatchHeader::<CanaryV0>::BATCH_SPEND_LIMIT);
+        assert!(max_synthesis_cost::<TestnetV0>() < BatchHeader::<TestnetV0>::BATCH_SPEND_LIMIT);
+        assert!(max_synthesis_cost::<MainnetV0>() < BatchHeader::<MainnetV0>::BATCH_SPEND_LIMIT);
     }
 }

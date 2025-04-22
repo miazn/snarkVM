@@ -1,4 +1,4 @@
-// Copyright 2024 Aleo Network Foundation
+// Copyright 2024-2025 Aleo Network Foundation
 // This file is part of the snarkVM library.
 
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,6 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use aleo_std::StorageMode;
 use snarkvm_algorithms::{crypto_hash::sha256::sha256, snark::varuna::VarunaVersion};
 use snarkvm_circuit::{Aleo, Assignment};
 use snarkvm_console::{
@@ -22,7 +23,13 @@ use snarkvm_console::{
     program::{Plaintext, Record, StatePath},
     types::Field,
 };
-use snarkvm_ledger_store::{ConsensusStore, helpers::memory::ConsensusMemory};
+use snarkvm_ledger_store::ConsensusStore;
+
+#[cfg(not(feature = "rocks"))]
+type LedgerType<N> = snarkvm_ledger_store::helpers::memory::ConsensusMemory<N>;
+#[cfg(feature = "rocks")]
+type LedgerType<N> = snarkvm_ledger_store::helpers::rocksdb::ConsensusDB<N>;
+
 use snarkvm_synthesizer::{VM, process::InclusionAssignment, snark::UniversalSRS};
 
 use anyhow::{Result, anyhow};
@@ -70,7 +77,7 @@ fn write_metadata(filename: &str, metadata: &Value) -> Result<()> {
 #[allow(clippy::type_complexity)]
 pub fn sample_assignment<N: Network, A: Aleo<Network = N>>() -> Result<(Assignment<N::Field>, StatePath<N>, Field<N>)> {
     // Initialize the consensus store.
-    let store = ConsensusStore::<N, ConsensusMemory<N>>::open(None)?;
+    let store = ConsensusStore::<N, LedgerType<N>>::open(StorageMode::new_test(None))?;
     // Initialize a new VM.
     let vm = VM::from(store)?;
 

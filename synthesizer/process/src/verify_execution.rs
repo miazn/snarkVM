@@ -1,4 +1,4 @@
-// Copyright 2024 Aleo Network Foundation
+// Copyright 2024-2025 Aleo Network Foundation
 // This file is part of the snarkVM library.
 
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -188,8 +188,9 @@ impl<N: Network> Process<N> {
             None => (Field::one(), *transition.program_id()),
         };
 
-        // Retrieve the adress belonging to the parent.
-        let parent_address = self.get_stack(parent)?.program_address();
+        // Retrieve the address belonging to the parent.
+        let stack = self.get_stack(parent)?;
+        let parent_address = stack.program_address();
 
         // Compute the x- and y-coordinate of `parent`.
         let (parent_x, parent_y) = parent_address.to_xy_coordinates();

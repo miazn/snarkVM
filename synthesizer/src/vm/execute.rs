@@ -1,4 +1,4 @@
-// Copyright 2024 Aleo Network Foundation
+// Copyright 2024-2025 Aleo Network Foundation
 // This file is part of the snarkVM library.
 
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -41,7 +41,7 @@ impl<N: Network, C: ConsensusStorage<N>> VM<N, C> {
         // Determine if a priority fee is declared.
         let is_priority_fee_declared = priority_fee_in_microcredits > 0;
         // Compute the execution.
-        let execution = self.execute_authorization_raw(authorization, query.clone(), rng)?;
+        let (execution, _) = self.execute_authorization_raw(authorization, query.clone(), rng)?;
         // Compute the fee.
         let fee = match is_fee_required || is_priority_fee_declared {
             true => {
@@ -83,6 +83,9 @@ impl<N: Network, C: ConsensusStorage<N>> VM<N, C> {
     }
 
     /// Returns a new execute transaction for the given authorization.
+    ///
+    /// This is identical to `execute_authorization_with_response` except that it
+    /// discards the `Response`.
     pub fn execute_authorization<R: Rng + CryptoRng>(
         &self,
         execute_authorization: Authorization<N>,
@@ -90,15 +93,29 @@ impl<N: Network, C: ConsensusStorage<N>> VM<N, C> {
         query: Option<Query<N, C::BlockStorage>>,
         rng: &mut R,
     ) -> Result<Transaction<N>> {
+        let (execution, _) =
+            self.execute_authorization_with_response(execute_authorization, fee_authorization, query, rng)?;
+        Ok(execution)
+    }
+
+    /// Returns a new execute transaction and response for the given authorization.
+    pub fn execute_authorization_with_response<R: Rng + CryptoRng>(
+        &self,
+        execute_authorization: Authorization<N>,
+        fee_authorization: Option<Authorization<N>>,
+        query: Option<Query<N, C::BlockStorage>>,
+        rng: &mut R,
+    ) -> Result<(Transaction<N>, Response<N>)> {
         // Compute the execution.
-        let execution = self.execute_authorization_raw(execute_authorization, query.clone(), rng)?;
+        let (execution, response) = self.execute_authorization_raw(execute_authorization, query.clone(), rng)?;
         // Compute the fee.
         let fee = match fee_authorization {
             Some(authorization) => Some(self.execute_fee_authorization_raw(authorization, query, rng)?),
             None => None,
         };
-        // Return the execute transaction.
-        Transaction::from_execution(execution, fee)
+        // Return the execute transaction and response.
+        let transaction = Transaction::from_execution(execution, fee)?;
+        Ok((transaction, response))
     }
 
     /// Returns a new fee for the given authorization.
@@ -122,7 +139,7 @@ impl<N: Network, C: ConsensusStorage<N>> VM<N, C> {
         authorization: Authorization<N>,
         query: Option<Query<N, C::BlockStorage>>,
         rng: &mut R,
-    ) -> Result<Execution<N>> {
+    ) -> Result<(Execution<N>, Response<N>)> {
         let timer = timer!("VM::execute_authorization_raw");
 
         // Construct the locator of the main function.
@@ -150,7 +167,7 @@ impl<N: Network, C: ConsensusStorage<N>> VM<N, C> {
                 // Prepare the authorization.
                 let authorization = cast_ref!(authorization as Authorization<$network>);
                 // Execute the call.
-                let (_, mut trace) = $process.execute::<$aleo, _>(authorization.clone(), rng)?;
+                let (response, mut trace) = $process.execute::<$aleo, _>(authorization.clone(), rng)?;
                 lap!(timer, "Execute the call");
 
                 // Prepare the assignments.
@@ -162,7 +179,7 @@ impl<N: Network, C: ConsensusStorage<N>> VM<N, C> {
                 lap!(timer, "Compute the proof");
 
                 // Return the execution.
-                Ok(cast_ref!(execution as Execution<N>).clone())
+                Ok((cast_ref!(execution as Execution<N>).clone(), cast_ref!(response as Response<N>).clone()))
             }};
         }
 
@@ -237,18 +254,21 @@ mod tests {
         types::Field,
     };
     use ledger_block::Transition;
-    use ledger_store::helpers::memory::ConsensusMemory;
     use synthesizer_process::{ConsensusFeeVersion, cost_per_command, execution_cost_v2};
     use synthesizer_program::StackProgram;
 
     use indexmap::IndexMap;
 
     type CurrentNetwork = MainnetV0;
+    #[cfg(not(feature = "rocks"))]
+    type LedgerType = ledger_store::helpers::memory::ConsensusMemory<CurrentNetwork>;
+    #[cfg(feature = "rocks")]
+    type LedgerType = ledger_store::helpers::rocksdb::ConsensusDB<CurrentNetwork>;
 
     fn prepare_vm(
         rng: &mut TestRng,
     ) -> Result<(
-        VM<CurrentNetwork, ConsensusMemory<CurrentNetwork>>,
+        VM<CurrentNetwork, LedgerType>,
         IndexMap<Field<CurrentNetwork>, Record<CurrentNetwork, Ciphertext<CurrentNetwork>>>,
     )> {
         // Initialize the genesis block.
@@ -370,7 +390,7 @@ mod tests {
 
         let authorization = vm.authorize(&caller_private_key, credits_program, function_name, inputs, rng).unwrap();
 
-        let execution = vm.execute_authorization_raw(authorization, None, rng).unwrap();
+        let (execution, _) = vm.execute_authorization_raw(authorization, None, rng).unwrap();
         let (cost, _) = execution_cost_v2(&vm.process().read(), &execution).unwrap();
         let (old_cost, _) = execution_cost_v1(&vm.process().read(), &execution).unwrap();
 
@@ -506,7 +526,7 @@ finalize test:
 
         let authorization = vm.authorize(&caller_private_key, credits_program, function_name, inputs, rng).unwrap();
 
-        let execution = vm.execute_authorization_raw(authorization, None, rng).unwrap();
+        let (execution, _) = vm.execute_authorization_raw(authorization, None, rng).unwrap();
         let (cost, _) = execution_cost_v1(&vm.process().read(), &execution).unwrap();
         println!("Cost: {}", cost);
     }

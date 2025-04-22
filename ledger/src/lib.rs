@@ -1,4 +1,4 @@
-// Copyright 2024 Aleo Network Foundation
+// Copyright 2024-2025 Aleo Network Foundation
 // This file is part of the snarkVM library.
 
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -70,15 +70,22 @@ use aleo_std::{
 use anyhow::Result;
 use core::ops::Range;
 use indexmap::IndexMap;
-use parking_lot::RwLock;
+#[cfg(feature = "locktick")]
+use locktick::parking_lot::{Mutex, RwLock};
+use lru::LruCache;
+#[cfg(not(feature = "locktick"))]
+use parking_lot::{Mutex, RwLock};
 use rand::{prelude::IteratorRandom, rngs::OsRng};
-use std::{borrow::Cow, sync::Arc};
+use std::{borrow::Cow, collections::HashSet, sync::Arc};
 use time::OffsetDateTime;
 
 #[cfg(not(feature = "serial"))]
 use rayon::prelude::*;
 
 pub type RecordMap<N> = IndexMap<Field<N>, Record<N, Plaintext<N>>>;
+
+/// The capacity of the LRU holding the recently queried committees.
+const COMMITTEE_CACHE_SIZE: usize = 16;
 
 #[derive(Copy, Clone, Debug)]
 pub enum RecordsFilter<N: Network> {
@@ -106,6 +113,8 @@ pub struct Ledger<N: Network, C: ConsensusStorage<N>> {
     current_committee: Arc<RwLock<Option<Committee<N>>>>,
     /// The current block.
     current_block: Arc<RwLock<Block<N>>>,
+    /// The recent committees of interest paired with their applicable rounds.
+    committee_cache: Arc<Mutex<LruCache<u64, Committee<N>>>>,
 }
 
 impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
@@ -160,6 +169,9 @@ impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
         // Retrieve the current committee.
         let current_committee = vm.finalize_store().committee_store().current_committee().ok();
 
+        // Create a committee cache.
+        let committee_cache = Arc::new(Mutex::new(LruCache::new(COMMITTEE_CACHE_SIZE.try_into().unwrap())));
+
         // Initialize the ledger.
         let mut ledger = Self {
             vm,
@@ -167,6 +179,7 @@ impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
             current_epoch_hash: Default::default(),
             current_committee: Arc::new(RwLock::new(current_committee)),
             current_block: Arc::new(RwLock::new(genesis_block.clone())),
+            committee_cache,
         };
 
         // If the block store is empty, initialize the genesis block.
@@ -390,7 +403,6 @@ pub(crate) mod test_helpers {
         network::MainnetV0,
         prelude::*,
     };
-    use ledger_block::Block;
     use ledger_store::ConsensusStore;
     use snarkvm_circuit::network::AleoV0;
     use synthesizer::vm::VM;
@@ -430,20 +442,16 @@ pub(crate) mod test_helpers {
         TestEnv { ledger, private_key, view_key, address }
     }
 
-    pub(crate) fn sample_genesis_block() -> Block<CurrentNetwork> {
-        Block::<CurrentNetwork>::from_bytes_le(CurrentNetwork::genesis_bytes()).unwrap()
-    }
-
     pub(crate) fn sample_ledger(
         private_key: PrivateKey<CurrentNetwork>,
         rng: &mut (impl Rng + CryptoRng),
     ) -> CurrentLedger {
         // Initialize the store.
-        let store = CurrentConsensusStore::open(None).unwrap();
+        let store = CurrentConsensusStore::open(StorageMode::new_test(None)).unwrap();
         // Create a genesis block.
         let genesis = VM::from(store).unwrap().genesis_beacon(&private_key, rng).unwrap();
         // Initialize the ledger with the genesis block.
-        let ledger = CurrentLedger::load(genesis.clone(), StorageMode::Production).unwrap();
+        let ledger = CurrentLedger::load(genesis.clone(), StorageMode::new_test(None)).unwrap();
         // Ensure the genesis block is correct.
         assert_eq!(genesis, ledger.get_block(0).unwrap());
         // Return the ledger.

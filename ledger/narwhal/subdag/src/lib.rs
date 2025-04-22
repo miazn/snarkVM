@@ -1,4 +1,4 @@
-// Copyright 2024 Aleo Network Foundation
+// Copyright 2024-2025 Aleo Network Foundation
 // This file is part of the snarkVM library.
 
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -118,7 +118,6 @@ pub struct Subdag<N: Network> {
 
 impl<N: Network> PartialEq for Subdag<N> {
     fn eq(&self, other: &Self) -> bool {
-        // Note: We do not check equality on `election_certificate_ids` as it would cause `Block::eq` to trigger false-positives.
         self.subdag == other.subdag
     }
 }

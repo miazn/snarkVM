@@ -38,7 +38,7 @@ commands:
             choco uninstall rust
             # Install rust with rustup.
             Invoke-WebRequest -Uri "https://win.rustup.rs/" -OutFile "C:\rustup-init.exe"
-            & C:\rustup-init.exe -y --default-toolchain "stable-x86_64-pc-windows-msvc" --no-modify-path --profile minimal
+            & C:\rustup-init.exe -y --default-toolchain "1.83.0-x86_64-pc-windows-msvc" --no-modify-path --profile minimal # Attention - Change the MSRV in Cargo.toml and rust-toolchain as well
             $Env:Path += ";$Env:USERPROFILE\.cargo\bin"
             # Verify the installation.
             cargo --version --verbose
@@ -506,7 +506,7 @@ jobs:
     resource_class: << pipeline.parameters.medium >>
     steps:
       - run_serial:
-          flags: --features=rocks
+          flags: --release --features=rocks -- --test-threads=2
           workspace_member: ledger
           cache_key: v1.3.0-rust-1.83.0-snarkvm-ledger-with-rocksdb-cache
 
@@ -973,8 +973,7 @@ workflows:
       - curves
       - fields
       - ledger
-# TODO (howardwu) - Implement `open_testing` on all storage, update to `CurrentConsensusStore::open_testing`, then re-enable.
-#      - ledger-with-rocksdb
+      - ledger-with-rocksdb
       - ledger-with-valid-solutions
       - ledger-authority
       - ledger-block

@@ -1,4 +1,4 @@
-// Copyright 2024 Aleo Network Foundation
+// Copyright 2024-2025 Aleo Network Foundation
 // This file is part of the snarkVM library.
 
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,7 +23,30 @@ impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
 
     /// Returns the committee for the given `round`.
     pub fn get_committee_for_round(&self, round: u64) -> Result<Option<Committee<N>>> {
-        self.vm.finalize_store().committee_store().get_committee_for_round(round)
+        // Check if the committee is already in the cache.
+        if let Some(committee) = self.committee_cache.lock().get(&round) {
+            return Ok(Some(committee.clone()));
+        }
+
+        match self.vm.finalize_store().committee_store().get_committee_for_round(round)? {
+            // Return the committee if it exists.
+            Some(committee) => {
+                // Insert the committee into the cache.
+                self.committee_cache.lock().push(round, committee.clone());
+                // Return the committee.
+                Ok(Some(committee))
+            }
+            // Return the current committee if the round is equivalent.
+            None => {
+                // Retrieve the current committee.
+                let current_committee = self.latest_committee()?;
+                // Return the current committee if the round is equivalent.
+                match current_committee.starting_round() == round {
+                    true => Ok(Some(current_committee)),
+                    false => Ok(None),
+                }
+            }
+        }
     }
 
     /// Returns the committee lookback for the given round.
@@ -290,27 +313,5 @@ impl<N: Network, C: ConsensusStorage<N>> Ledger<N, C> {
                 (mapping_validator == validator && bonded_address != *validator).then_some(Ok(bonded_address))
             })
             .collect::<Result<_>>()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::test_helpers::CurrentLedger;
-    use console::network::MainnetV0;
-
-    type CurrentNetwork = MainnetV0;
-
-    #[test]
-    fn test_get_block() {
-        // Load the genesis block.
-        let genesis = Block::from_bytes_le(CurrentNetwork::genesis_bytes()).unwrap();
-
-        // Initialize a new ledger.
-        let ledger = CurrentLedger::load(genesis.clone(), StorageMode::Production).unwrap();
-        // Retrieve the genesis block.
-        let candidate = ledger.get_block(0).unwrap();
-        // Ensure the genesis block matches.
-        assert_eq!(genesis, candidate);
     }
 }

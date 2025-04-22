@@ -1,4 +1,4 @@
-// Copyright 2024 Aleo Network Foundation
+// Copyright 2024-2025 Aleo Network Foundation
 // This file is part of the snarkVM library.
 
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -141,8 +141,8 @@ impl<N: Network> Block<N> {
         )
     }
 
-    /// Initializes a new block from the given previous block hash, block header,
-    /// authority, ratifications, solutions, transactions, and aborted transaction IDs.
+    /// Initializes a new block from the given previous block hash, block header, authority,
+    /// ratifications, solutions, aborted solution IDs, transactions, and aborted transaction IDs.
     pub fn from(
         previous_hash: N::BlockHash,
         header: Header<N>,
@@ -155,21 +155,31 @@ impl<N: Network> Block<N> {
     ) -> Result<Self> {
         // Ensure the number of aborted solutions IDs is within the allowed range.
         if aborted_solution_ids.len() > Solutions::<N>::max_aborted_solutions()? {
-            bail!("Cannot initialize a block with {} aborted solutions IDs", aborted_solution_ids.len());
+            bail!(
+                "Cannot initialize a block with {} aborted solutions IDs which exceed the maximum {}",
+                aborted_solution_ids.len(),
+                Solutions::<N>::max_aborted_solutions()?
+            );
         }
 
         // Ensure the number of transactions is within the allowed range.
         if transactions.len() > Transactions::<N>::MAX_TRANSACTIONS {
             bail!(
-                "Cannot initialize a block with more than {} confirmed transactions",
+                "Cannot initialize a block with {} confirmed transactions which exceed the maximum {}",
+                transactions.len(),
                 Transactions::<N>::MAX_TRANSACTIONS
             );
         }
 
+        // Here we do not check that the number of solutions is within the allowed range,
+        // because that was already done when constructing [`Solutions`] values,
+        // specifically in [`PuzzleSolutions::new()`].
+
         // Ensure the number of aborted transaction IDs is within the allowed range.
         if aborted_transaction_ids.len() > Transactions::<N>::max_aborted_transactions()? {
             bail!(
-                "Cannot initialize a block with more than {} aborted transaction IDs",
+                "Cannot initialize a block with {} aborted transaction IDs which exceed the maximum {}",
+                aborted_transaction_ids.len(),
                 Transactions::<N>::max_aborted_transactions()?
             );
         }
@@ -227,7 +237,8 @@ impl<N: Network> Block<N> {
 
     /// Initializes a new block from the given block hash, previous block hash, block header,
     /// authority, ratifications, solutions, transactions, and aborted transaction IDs.
-    pub fn from_unchecked(
+    /// This is only called by [`Block::from`], which validates the block components.
+    fn from_unchecked(
         block_hash: N::BlockHash,
         previous_hash: N::BlockHash,
         header: Header<N>,
@@ -459,7 +470,7 @@ impl<N: Network> Block<N> {
 }
 
 impl<N: Network> Block<N> {
-    /// Returns the solution IDs in this block.
+    /// Returns an iterator over the solution IDs in this block.
     pub fn solution_ids(&self) -> Option<impl '_ + Iterator<Item = &SolutionID<N>>> {
         self.solutions.as_ref().map(|solution| solution.solution_ids())
     }
@@ -606,6 +617,7 @@ pub mod test_helpers {
     use ledger_store::{BlockStore, helpers::memory::BlockMemory};
     use synthesizer_process::Process;
 
+    use aleo_std::StorageMode;
     use once_cell::sync::OnceCell;
 
     type CurrentNetwork = console::network::MainnetV0;
@@ -662,7 +674,7 @@ pub mod test_helpers {
         let (_, mut trace) = process.execute::<CurrentAleo, _>(authorization, rng).unwrap();
 
         // Initialize a new block store.
-        let block_store = BlockStore::<CurrentNetwork, BlockMemory<_>>::open(None).unwrap();
+        let block_store = BlockStore::<CurrentNetwork, BlockMemory<_>>::open(StorageMode::new_test(None)).unwrap();
 
         // Prepare the assignments.
         trace.prepare(Query::from(block_store)).unwrap();

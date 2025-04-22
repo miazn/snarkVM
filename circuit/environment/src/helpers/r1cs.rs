@@ -1,4 +1,4 @@
-// Copyright 2024 Aleo Network Foundation
+// Copyright 2024-2025 Aleo Network Foundation
 // This file is part of the snarkVM library.
 
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,18 +19,54 @@ use crate::{
 };
 use snarkvm_fields::PrimeField;
 
-use std::rc::Rc;
+#[cfg(feature = "save_r1cs_hashes")]
+use sha2::{Digest, Sha256};
+use std::sync::Arc;
+#[cfg(feature = "save_r1cs_hashes")]
+use std::{
+    hash::{Hash, Hasher},
+    sync::Mutex,
+};
+
+#[cfg(feature = "save_r1cs_hashes")]
+struct Sha256Hasher(Sha256);
+
+#[cfg(feature = "save_r1cs_hashes")]
+impl Hasher for Sha256Hasher {
+    fn write(&mut self, bytes: &[u8]) {
+        self.0.update(bytes);
+    }
+
+    fn finish(&self) -> u64 {
+        unimplemented!("Use Digest::finalize instead to get the full SHA-256 digest");
+    }
+}
+
+#[cfg(feature = "save_r1cs_hashes")]
+fn hash_to_sha256<T: Hash>(t: &T) -> [u8; 32] {
+    let mut hasher = Sha256Hasher(Sha256::new());
+    t.hash(&mut hasher);
+    hasher.0.finalize().into()
+}
 
 pub type Scope = String;
 
-#[derive(Debug)]
+/// A list of hashes of all the R1CS objects that have reached the
+/// coversion to Assignment stage. It's a vector in case there are
+/// any duplicates (which could indicate no change or redundant
+/// work) and since they need to eventually be sorted in order to
+/// have deterministic order, as they may be created in parallel.
+#[cfg(feature = "save_r1cs_hashes")]
+pub static R1CS_HASHES: Mutex<Vec<[u8; 32]>> = Mutex::new(Vec::new());
+
+#[derive(Debug, Hash)]
 pub struct R1CS<F: PrimeField> {
     constants: Vec<Variable<F>>,
-    public: Vec<Variable<F>>,
-    private: Vec<Variable<F>>,
-    constraints: Vec<Rc<Constraint<F>>>,
+    pub(crate) public: Vec<Variable<F>>,
+    pub(crate) private: Vec<Variable<F>>,
+    pub(crate) constraints: Vec<Arc<Constraint<F>>>,
     counter: Counter<F>,
-    num_variables: u64,
+    pub(crate) num_variables: u64,
     nonzeros: (u64, u64, u64),
 }
 
@@ -39,7 +75,7 @@ impl<F: PrimeField> R1CS<F> {
     pub(crate) fn new() -> Self {
         Self {
             constants: Default::default(),
-            public: vec![Variable::Public(Rc::new((0u64, F::one())))],
+            public: vec![Variable::Public(Arc::new((0u64, F::one())))],
             private: Default::default(),
             constraints: Default::default(),
             counter: Default::default(),
@@ -60,7 +96,7 @@ impl<F: PrimeField> R1CS<F> {
 
     /// Returns a new constant with the given value and scope.
     pub(crate) fn new_constant(&mut self, value: F) -> Variable<F> {
-        let variable = Variable::Constant(Rc::new(value));
+        let variable = Variable::Constant(Arc::new(value));
         self.constants.push(variable.clone());
         self.counter.increment_constant();
         self.num_variables += 1;
@@ -69,7 +105,7 @@ impl<F: PrimeField> R1CS<F> {
 
     /// Returns a new public variable with the given value and scope.
     pub(crate) fn new_public(&mut self, value: F) -> Variable<F> {
-        let variable = Variable::Public(Rc::new((self.public.len() as u64, value)));
+        let variable = Variable::Public(Arc::new((self.public.len() as u64, value)));
         self.public.push(variable.clone());
         self.counter.increment_public();
         self.num_variables += 1;
@@ -78,7 +114,7 @@ impl<F: PrimeField> R1CS<F> {
 
     /// Returns a new private variable with the given value and scope.
     pub(crate) fn new_private(&mut self, value: F) -> Variable<F> {
-        let variable = Variable::Private(Rc::new((self.private.len() as u64, value)));
+        let variable = Variable::Private(Arc::new((self.private.len() as u64, value)));
         self.private.push(variable.clone());
         self.counter.increment_private();
         self.num_variables += 1;
@@ -92,8 +128,8 @@ impl<F: PrimeField> R1CS<F> {
         self.nonzeros.1 += b_nonzeros;
         self.nonzeros.2 += c_nonzeros;
 
-        let constraint = Rc::new(constraint);
-        self.constraints.push(Rc::clone(&constraint));
+        let constraint = Arc::new(constraint);
+        self.constraints.push(Arc::clone(&constraint));
         self.counter.add_constraint(constraint);
     }
 
@@ -206,8 +242,16 @@ impl<F: PrimeField> R1CS<F> {
     }
 
     /// Returns the constraints in the constraint system.
-    pub fn to_constraints(&self) -> &Vec<Rc<Constraint<F>>> {
+    pub fn to_constraints(&self) -> &Vec<Arc<Constraint<F>>> {
         &self.constraints
+    }
+
+    /// Register the current hash of the entire R1CS and add
+    /// it to the R1CS_HASHES collection.
+    #[cfg(feature = "save_r1cs_hashes")]
+    pub(crate) fn save_hash(&self) {
+        let r1cs_hash = hash_to_sha256(self);
+        R1CS_HASHES.lock().unwrap().push(r1cs_hash);
     }
 }
 

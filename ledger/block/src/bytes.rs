@@ -1,4 +1,4 @@
-// Copyright 2024 Aleo Network Foundation
+// Copyright 2024-2025 Aleo Network Foundation
 // This file is part of the snarkVM library.
 
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -36,7 +36,7 @@ impl<N: Network> FromBytes for Block<N> {
         // Read the authority.
         let authority = FromBytes::read_le(&mut reader)?;
 
-        // Read the number of ratifications.
+        // Read the ratifications.
         let ratifications = Ratifications::read_le(&mut reader)?;
 
         // Read the solutions.
