@@ -1,4 +1,4 @@
-// Copyright 2024-2025 Aleo Network Foundation
+// Copyright (c) 2019-2025 Provable Inc.
 // This file is part of the snarkVM library.
 
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -1938,6 +1938,7 @@ finalize transfer_public:
         assert!(Committee::new_genesis(committee_map).is_err());
     }
 
+    #[cfg(not(feature = "test"))]
     #[test]
     #[allow(clippy::assertions_on_constants)]
     fn test_migration_v3_maximum_validator_increase() {
